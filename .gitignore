@@ -1,0 +1,68 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.log
+*.egg
+*.manifest
+*.spec
+
+# --- virtuelle Umgebungen ---
+venv/
+env/
+.venv/
+
+# --- Environment-Dateien ---
+.env
+.env.*
+!.env.template
+
+# --- Distribution / Packaging ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Test / Coverage ---
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Django ---
+*.pot
+local_settings.py
+
+# --- Database ---
+*.sqlite3
+
+# --- Static / Media ---
+static/
+staticfiles/
+media/
+
+# --- Temporary / Generated Files ---
+tmp/
+temp/
+
+# --- IDE / Editor ---
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+.github/copilot-instructions.md
+*.swp
+*.swo
+
+# --- System-Files ---
+.DS_Store
+Thumbs.db
+
+# --- Logs and Local Files ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
