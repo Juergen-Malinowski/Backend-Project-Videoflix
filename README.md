@@ -90,20 +90,51 @@ Important variables:
 
 ## Project Structure
 
+The backend currently contains the Django core project and two prepared apps.
+
 ```text
-project_videoflix/
-├── backend/
-│   ├── core/
-│   ├── .dockerignore
-│   ├── .env.template
-│   ├── .gitignore
-│   ├── backend.Dockerfile
-│   ├── backend.entrypoint.sh
-│   ├── docker-compose.yml
-│   ├── manage.py
-│   ├── requirements.txt
-│   └── README.md
-└── frontend/
+backend/
+├── auth_app/
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── permissions.py
+│   │   ├── serializers.py
+│   │   ├── urls.py
+│   │   └── views.py
+│   ├── tests/
+│   │   ├── __init__.py
+│   │   ├── mixins.py
+│   │   ├── test_activation_api.py
+│   │   ├── test_login_api.py
+│   │   ├── test_logout_api.py
+│   │   ├── test_password_confirm_api.py
+│   │   ├── test_password_reset_api.py
+│   │   ├── test_registration_api.py
+│   │   └── test_token_refresh_api.py
+│   ├── admin.py
+│   ├── apps.py
+│   └── models.py
+├── videos_app/
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── permissions.py
+│   │   ├── serializers.py
+│   │   ├── urls.py
+│   │   └── views.py
+│   ├── tests/
+│   │   ├── __init__.py
+│   │   ├── mixins.py
+│   │   ├── test_video_list_api.py
+│   │   ├── test_video_manifest_api.py
+│   │   └── test_video_segment_api.py
+│   ├── admin.py
+│   ├── apps.py
+│   └── models.py
+├── core/
+├── manage.py
+├── pytest.ini
+├── requirements.txt
+└── README.md
 ```
 
 The frontend and backend are separated projects.
@@ -139,19 +170,15 @@ Planned endpoint areas will be added after the Videoflix API documentation has b
 
 ## Testing
 
-Automated tests have not been added yet.
+The project uses pytest and pytest-django.
 
-Planned testing setup:
+The test structure is prepared per API endpoint. Each endpoint has its own dedicated test file. The actual test logic will be added later based on the detailed API endpoint documentation.
 
-* pytest
-* pytest-django
-* endpoint-based test files
-* app-based test folders
-* mocked external services where needed
+The default Django tests.py files were removed because the project uses structured pytest test packages instead.
 
 ## Running Tests
 
-No test suite is available yet.
+No executable test cases have been implemented yet.
 
 The future test command will be:
 
@@ -219,3 +246,16 @@ Implemented so far:
 * backend container started successfully
 * initial Django migrations applied successfully
 * Django admin login verified
+* auth_app created
+* videos_app created
+* API folders prepared for both apps
+* base API files added for serializers, views, urls and permissions
+* placeholder API views added for planned endpoints
+* authentication API routes prepared
+* video API routes prepared
+* app API URLs included in core/urls.py
+* pytest configuration added
+* pytest test packages prepared for both apps
+* endpoint-based test files created
+* default Django tests.py files removed
+* no project-specific business logic has been implemented yet
