@@ -35,3 +35,11 @@ class AuthTestMixin:
             password=password,
             is_active=False,
         )
+
+
+    def get_login_data(self, email='user@example.com', password='securepassword'):
+        """Return valid request data for the login endpoint."""
+        return {
+            'email': email,
+            'password': password,
+        }
