@@ -46,3 +46,16 @@ class VideoTestMixin(AuthTestMixin):
         )
 
         return manifest_path
+
+
+    def create_segment_file(self, video, resolution='720p', segment='000.ts'):
+        """Create and return a test HLS TS segment file path."""
+
+        segment_dir = Path('videos') / str(video.id) / resolution
+        full_segment_dir = Path(self.media_root) / segment_dir
+        full_segment_dir.mkdir(parents=True, exist_ok=True)
+
+        segment_path = full_segment_dir / segment
+        segment_path.write_bytes(b'test-ts-segment-content')
+
+        return segment_path
