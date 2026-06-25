@@ -141,9 +141,47 @@ The frontend and backend are separated projects.
 
 ## Database Models
 
-No project-specific database models have been implemented yet.
+The project currently includes one project-specific database model.
 
-Currently available database structures come from:
+### `videos_app.Video`
+
+The `Video` model stores metadata used by the video API endpoints.
+
+Current fields:
+
+* `title`
+* `description`
+* `thumbnail_url`
+* `category`
+* `created_at`
+
+The model is currently used by the video API test coverage to prepare video metadata and connect test videos with generated HLS manifest and HLS segment files.
+
+HLS manifest files and HLS segment files are not stored directly in the database. They are expected to be stored as media files under `MEDIA_ROOT` and resolved through a defined path structure during API handling.
+
+Current expected HLS media structure:
+
+```text
+MEDIA_ROOT/
+└── videos/
+    └── <video_id>/
+        ├── 480p/
+        │   ├── index.m3u8
+        │   ├── 000.ts
+        │   └── ...
+        ├── 720p/
+        │   ├── index.m3u8
+        │   ├── 000.ts
+        │   └── ...
+        └── 1080p/
+            ├── index.m3u8
+            ├── 000.ts
+            └── ...
+```
+
+The `Video` model is not final yet. Additional fields may be added later when video upload, thumbnail handling, processing status, conversion jobs or production media storage are implemented.
+
+Additional database structures are provided by:
 
 * Django admin
 * Django auth
@@ -172,18 +210,66 @@ Planned endpoint areas will be added after the Videoflix API documentation has b
 
 The project uses pytest and pytest-django.
 
-The test structure is prepared per API endpoint. Each endpoint has its own dedicated test file. The actual test logic will be added later based on the detailed API endpoint documentation.
+The test structure is organized per API endpoint. Each endpoint has its own dedicated test file.
 
-The default Django tests.py files were removed because the project uses structured pytest test packages instead.
+The default Django `tests.py` files were removed because the project uses structured pytest test packages instead.
+
+Current test coverage includes authentication endpoints and video endpoints.
+
+| App | Test file | Tests |
+| --- | --- | ---: |
+| `auth_app` | `auth_app/tests/test_activation_api.py` | 6 |
+| `auth_app` | `auth_app/tests/test_login_api.py` | 13 |
+| `auth_app` | `auth_app/tests/test_logout_api.py` | 6 |
+| `auth_app` | `auth_app/tests/test_password_confirm_api.py` | 9 |
+| `auth_app` | `auth_app/tests/test_password_reset_api.py` | 5 |
+| `auth_app` | `auth_app/tests/test_registration_api.py` | 16 |
+| `auth_app` | `auth_app/tests/test_token_refresh_api.py` | 8 |
+| `videos_app` | `videos_app/tests/test_video_list_api.py` | 7 |
+| `videos_app` | `videos_app/tests/test_video_manifest_api.py` | 8 |
+| `videos_app` | `videos_app/tests/test_video_segment_api.py` | 9 |
+| **Total** | **10 test files** | **87** |
+
+The tests currently define the expected API behavior. Some tests are expected to fail during the TDD phase until the related serializers, views, permissions and services are implemented.
 
 ## Running Tests
 
-No executable test cases have been implemented yet.
-
-The future test command will be:
+Tests should be executed inside the Docker container because the project database host `db` is resolved inside the Docker Compose network.
 
 ```bash
-python -m pytest
+# Run the full test suite
+docker-compose exec web python -m pytest -v
+
+# Run all authentication app tests
+docker-compose exec web python -m pytest auth_app/tests -v
+
+# Run all video app tests
+docker-compose exec web python -m pytest videos_app/tests -v
+
+# Run a single authentication test file
+docker-compose exec web python -m pytest auth_app/tests/test_registration_api.py -v
+
+# Run a single video test file
+docker-compose exec web python -m pytest videos_app/tests/test_video_list_api.py -v
+```
+
+If `docker-compose` is not available, use the newer Docker Compose syntax:
+
+```bash
+# Run the full test suite
+docker compose exec web python -m pytest -v
+
+# Run all authentication app tests
+docker compose exec web python -m pytest auth_app/tests -v
+
+# Run all video app tests
+docker compose exec web python -m pytest videos_app/tests -v
+
+# Run a single authentication test file
+docker compose exec web python -m pytest auth_app/tests/test_registration_api.py -v
+
+# Run a single video test file
+docker compose exec web python -m pytest videos_app/tests/test_video_list_api.py -v
 ```
 
 ## Docker Commands
@@ -258,4 +344,20 @@ Implemented so far:
 * pytest test packages prepared for both apps
 * endpoint-based test files created
 * default Django tests.py files removed
-* no project-specific business logic has been implemented yet
+* no project-specific API business logic has been implemented yet
+* authentication API endpoint tests added
+* registration API tests added
+* account activation API tests added
+* login API tests added
+* logout API tests added
+* token refresh API tests added
+* password reset API tests added
+* password confirm API tests added
+* `Video` model added in `videos_app/models.py`
+* video list API tests added
+* video manifest API tests added
+* video segment API tests added
+* reusable authentication test helpers added
+* reusable video test helpers added
+* Docker-based pytest commands documented
+* current prepared test count documented
