@@ -1,5 +1,7 @@
 """Reusable test helpers for Videoflix video API tests."""
 
+from pathlib import Path
+
 from rest_framework_simplejwt.tokens import AccessToken
 
 from auth_app.tests.mixins import AuthTestMixin
@@ -25,3 +27,22 @@ class VideoTestMixin(AuthTestMixin):
             thumbnail_url='http://example.com/media/thumbnail/image.jpg',
             category=category,
         )
+
+
+    def create_manifest_file(self, video, resolution='720p'):
+        """Create and return a test HLS manifest file path."""
+
+        manifest_dir = Path('videos') / str(video.id) / resolution
+        full_manifest_dir = Path(self.media_root) / manifest_dir
+        full_manifest_dir.mkdir(parents=True, exist_ok=True)
+
+        manifest_path = full_manifest_dir / 'index.m3u8'
+        manifest_path.write_text(
+            '#EXTM3U\n'
+            '#EXT-X-VERSION:3\n'
+            '#EXTINF:10.0,\n'
+            'segment_000.ts\n',
+            encoding='utf-8',
+        )
+
+        return manifest_path
