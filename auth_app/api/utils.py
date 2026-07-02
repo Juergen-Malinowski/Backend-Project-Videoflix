@@ -80,3 +80,10 @@ def set_auth_cookies(response, access_token, refresh_token):
         samesite='Lax',
         max_age=int(timedelta(days=1).total_seconds()),
     )
+
+
+def delete_auth_cookies(response):
+    """Delete JWT authentication cookies from a response."""
+
+    response.delete_cookie('access_token', samesite='Lax')
+    response.delete_cookie('refresh_token', samesite='Lax')

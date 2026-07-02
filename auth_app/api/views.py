@@ -7,6 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from auth_app.api.serializers import LoginSerializer, RegistrationSerializer
 from auth_app.api.utils import(
+    delete_auth_cookies,
     get_user_from_uidb64, 
     send_activation_email,
     set_auth_cookies,
@@ -96,7 +97,34 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    pass
+    """Handle user logout requests."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        """Blacklist refresh token and delete authentication cookies."""
+
+        refresh_token = request.COOKIES.get('refresh_token')
+
+        if not refresh_token:
+            return Response(
+                {'detail': 'Refresh token cookie is missing.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        RefreshToken(refresh_token).blacklist()
+        response = Response(
+            {
+                'detail': (
+                    'Logout successful! All tokens will be deleted. '
+                    'Refresh token is now invalid.'
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )
+        delete_auth_cookies(response)
+        return response
 
 
 class TokenRefreshView(APIView):
