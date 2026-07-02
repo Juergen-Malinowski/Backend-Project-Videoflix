@@ -3,9 +3,14 @@ from django.contrib.auth.tokens import default_token_generator
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from auth_app.api.serializers import RegistrationSerializer
-from auth_app.api.utils import get_user_from_uidb64, send_activation_email
+from auth_app.api.serializers import LoginSerializer, RegistrationSerializer
+from auth_app.api.utils import(
+    get_user_from_uidb64, 
+    send_activation_email,
+    set_auth_cookies,
+)
 
 
 class RegistrationView(APIView):
@@ -62,7 +67,32 @@ class AccountActivationView(APIView):
 
 
 class LoginView(APIView):
-    pass
+    """Handle user login requests."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        """Authenticate a user and set JWT cookies."""
+
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        refresh_token = RefreshToken.for_user(user)
+        access_token = refresh_token.access_token
+
+        response = Response(
+            {
+                'detail': 'Login successful',
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+        set_auth_cookies(response, access_token, refresh_token)
+        return response
 
 
 class LogoutView(APIView):

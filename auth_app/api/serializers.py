@@ -1,8 +1,17 @@
 """Serializers for the Videoflix authentication API."""
 
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
 
-from rest_framework import serializers
+from rest_framework import serializers, status
+from rest_framework.exceptions import APIException
+
+
+class LoginFailed(APIException):
+    """Represent failed login authentication with HTTP 401."""
+
+    status_code = status.HTTP_401_UNAUTHORIZED
+    default_detail = 'Please check your input and try again.'
+    default_code = 'authentication_failed'
 
 
 class RegistrationSerializer(serializers.Serializer):
@@ -57,3 +66,30 @@ class RegistrationSerializer(serializers.Serializer):
         )
 
 
+class LoginSerializer(serializers.Serializer):
+    """Validate login data and authenticate active users."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        """Validate login credentials and return authenticated user."""
+
+        email = attrs['email'].strip().lower()
+        user = self._authenticate_user(email, attrs['password'])
+
+        if user is None or not user.is_active:
+            raise LoginFailed()
+
+        attrs['email'] = email
+        attrs['user'] = user
+        return attrs
+
+
+    def _authenticate_user(self, email, password):
+        """Return the authenticated user for email and password."""
+
+        return authenticate(
+            username=email,
+            password=password,
+        )
