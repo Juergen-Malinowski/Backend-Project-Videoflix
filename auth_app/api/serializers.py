@@ -76,7 +76,10 @@ class LoginSerializer(serializers.Serializer):
         """Validate login credentials and return authenticated user."""
 
         email = attrs['email'].strip().lower()
-        user = self._authenticate_user(email, attrs['password'])
+        user = authenticate(
+            username=email,
+            password=attrs['password'],
+        )
 
         if user is None or not user.is_active:
             raise LoginFailed()
@@ -84,15 +87,6 @@ class LoginSerializer(serializers.Serializer):
         attrs['email'] = email
         attrs['user'] = user
         return attrs
-
-
-    def _authenticate_user(self, email, password):
-        """Return the authenticated user for email and password."""
-
-        return authenticate(
-            username=email,
-            password=password,
-        )
 
 
 class PasswordResetSerializer(serializers.Serializer):
@@ -104,3 +98,20 @@ class PasswordResetSerializer(serializers.Serializer):
         """Return a normalized password reset email address."""
 
         return value.strip().lower()
+
+
+class PasswordConfirmSerializer(serializers.Serializer):
+    """Validate password confirmation data."""
+
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        """Validate that both password fields match."""
+
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError(
+                'Please check your input and try again.',
+            )
+
+        return attrs

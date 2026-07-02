@@ -11,6 +11,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 
 from auth_app.api.serializers import (
     LoginSerializer,
+    PasswordConfirmSerializer,
     PasswordResetSerializer,
     RegistrationSerializer,
 )
@@ -205,4 +206,28 @@ class PasswordResetView(APIView):
 
 
 class PasswordConfirmView(APIView):
-    pass
+    """Handle password reset confirmation requests."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, uidb64, token):
+        """Set a new password if uid, token and request data are valid."""
+
+        user = get_user_from_uidb64(uidb64)
+
+        if user is None or not default_token_generator.check_token(user, token):
+            return Response(
+                {'detail': 'Password reset failed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = PasswordConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user.set_password(serializer.validated_data['new_password'])
+        user.save(update_fields=['password'])
+
+        return Response(
+            {'detail': 'Your Password has been successfully reset.'},
+            status=status.HTTP_200_OK,
+        )
