@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 
 from rest_framework import status
@@ -8,11 +9,17 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from auth_app.api.serializers import LoginSerializer, RegistrationSerializer
+from auth_app.api.serializers import (
+    LoginSerializer,
+    PasswordResetSerializer,
+    RegistrationSerializer,
+)
+
 from auth_app.api.utils import (
     delete_auth_cookies,
     get_user_from_uidb64,
     send_activation_email,
+    send_password_reset_email,
     set_auth_cookies,
 )
 
@@ -174,7 +181,27 @@ class TokenRefreshView(APIView):
 
 
 class PasswordResetView(APIView):
-    pass
+    """Handle password reset email requests."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        """Send a password reset email if the user exists."""
+
+        serializer = PasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        user = get_user_model().objects.filter(email=email).first()
+
+        if user:
+            token = default_token_generator.make_token(user)
+            send_password_reset_email(user, token)
+
+        return Response(
+            {'detail': 'An email has been sent to reset your password.'},
+            status=status.HTTP_200_OK,
+        )
 
 
 class PasswordConfirmView(APIView):

@@ -51,6 +51,49 @@ def send_activation_email(user, token):
     )
 
 
+def build_password_confirm_url(user, token):
+    """Build the backend password confirmation URL for a user."""
+
+    uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+    return f'/api/password_confirm/{uidb64}/{token}/'
+
+
+def build_frontend_password_confirm_path(user, token):
+    """Build the frontend password confirmation path for a user."""
+
+    uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+    return f'/pages/auth/confirm_password.html?uid={uidb64}&token={token}'
+
+
+def build_password_reset_email_message(user, token):
+    """Build the plain text password reset email message."""
+
+    frontend_path = build_frontend_password_confirm_path(user, token)
+    confirm_url = build_password_confirm_url(user, token)
+
+    return (
+        'You requested a password reset for your Videoflix account.\n\n'
+        'Please set a new password using this link:\n'
+        f'{frontend_path}\n\n'
+        'Backend password confirmation endpoint:\n'
+        f'{confirm_url}\n\n'
+        'If you did not request this password reset, you can ignore this email.'
+    )
+
+
+def send_password_reset_email(user, token):
+    """Send a password reset email to a user."""
+
+    message = build_password_reset_email_message(user, token)
+
+    send_mail(
+        subject='Reset your Videoflix password',
+        message=message,
+        from_email=None,
+        recipient_list=[user.email],
+    )
+
+
 def get_user_from_uidb64(uidb64):
     """Return a user for a base64 encoded user id."""
 

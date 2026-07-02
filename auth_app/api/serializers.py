@@ -93,3 +93,14 @@ class LoginSerializer(serializers.Serializer):
             username=email,
             password=password,
         )
+
+
+class PasswordResetSerializer(serializers.Serializer):
+    """Validate password reset request data."""
+
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        """Return a normalized password reset email address."""
+
+        return value.strip().lower()

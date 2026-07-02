@@ -61,6 +61,22 @@ class TestPasswordResetApi(AuthTestMixin):
         assert reset_url in mail.outbox[0].body
 
 
+    def test_password_reset_email_contains_frontend_confirm_path(self):
+        """Test that reset email contains the frontend password confirm path."""
+
+        response = self.client.post(self.url, self.reset_data, format='json')
+
+        uidb64 = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        frontend_confirm_path = (
+            f'/pages/auth/confirm_password.html?uid={uidb64}'
+            f'&token={token}'
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert frontend_confirm_path in mail.outbox[0].body
+
+
     def test_password_reset_requires_no_authentication(self):
         """Test that unauthenticated users can request password reset email."""
 
