@@ -1,14 +1,17 @@
+from datetime import timedelta
+
 from django.contrib.auth.tokens import default_token_generator
 
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 
 from auth_app.api.serializers import LoginSerializer, RegistrationSerializer
-from auth_app.api.utils import(
+from auth_app.api.utils import (
     delete_auth_cookies,
-    get_user_from_uidb64, 
+    get_user_from_uidb64,
     send_activation_email,
     set_auth_cookies,
 )
@@ -128,7 +131,46 @@ class LogoutView(APIView):
 
 
 class TokenRefreshView(APIView):
-    pass
+    """Handle access token refresh requests."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        """Create a new access token from a valid refresh token cookie."""
+
+        refresh_token = request.COOKIES.get('refresh_token')
+
+        if not refresh_token:
+            return Response(
+                {'detail': 'Refresh token cookie is missing.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            refresh = RefreshToken(refresh_token)
+        except TokenError:
+            return Response(
+                {'detail': 'Refresh token is invalid.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        access_token = refresh.access_token
+        response = Response(
+            {
+                'detail': 'Token refreshed',
+                'access': str(access_token),
+            },
+            status=status.HTTP_200_OK,
+        )
+        response.set_cookie(
+            key='access_token',
+            value=str(access_token),
+            httponly=True,
+            samesite='Lax',
+            max_age=int(timedelta(minutes=5).total_seconds()),
+        )
+        return response
 
 
 class PasswordResetView(APIView):
