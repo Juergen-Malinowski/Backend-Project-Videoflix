@@ -114,6 +114,26 @@ class TestRegistrationApi(AuthTestMixin):
         assert activation_url in email_body
 
 
+    def test_registration_activation_email_contains_frontend_activation_path(self):
+        """Test that activation email contains the frontend activation path."""
+        response = self.client.post(
+            self.url,
+            self.valid_registration_data,
+            format='json',
+        )
+
+        user = get_user_model().objects.get(email='user@example.com')
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+        frontend_activation_path = (
+            f'/pages/auth/activate.html?uid={uidb64}'
+            f'&token={response.data["token"]}'
+        )
+        email_body = mail.outbox[0].body
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert frontend_activation_path in email_body
+
+
     @pytest.mark.parametrize('is_active', [True, False])
     def test_registration_rejects_existing_email(self, is_active):
         """Test that an existing email cannot be registered again."""
