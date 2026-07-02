@@ -1,8 +1,9 @@
 """Utility functions for the Videoflix authentication API."""
 
+from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
-from django.utils.encoding import force_bytes
-from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
 
 def build_activation_url(user, token):
@@ -46,3 +47,15 @@ def send_activation_email(user, token):
         from_email=None,
         recipient_list=[user.email],
     )
+
+
+def get_user_from_uidb64(uidb64):
+    """Return a user for a base64 encoded user id."""
+
+    user_model = get_user_model()
+
+    try:
+        user_id = force_str(urlsafe_base64_decode(uidb64))
+        return user_model.objects.get(pk=user_id)
+    except (TypeError, ValueError, OverflowError, user_model.DoesNotExist):
+        return None

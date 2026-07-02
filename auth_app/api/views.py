@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from auth_app.api.serializers import RegistrationSerializer
-from auth_app.api.utils import send_activation_email
+from auth_app.api.utils import get_user_from_uidb64, send_activation_email
 
 
 class RegistrationView(APIView):
@@ -36,7 +36,29 @@ class RegistrationView(APIView):
 
 
 class AccountActivationView(APIView):
-    pass
+    """Handle account activation requests."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, uidb64, token):
+        """Activate a user account if uid and token are valid."""
+
+        user = get_user_from_uidb64(uidb64)
+
+        if user is None or not default_token_generator.check_token(user, token):
+            return Response(
+                {'message': 'Account activation failed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.is_active = True
+        user.save(update_fields=['is_active'])
+
+        return Response(
+            {'message': 'Account successfully activated.'},
+            status=status.HTTP_200_OK,
+        )
 
 
 class LoginView(APIView):
