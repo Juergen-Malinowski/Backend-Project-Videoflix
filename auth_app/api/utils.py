@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.utils.encoding import force_bytes, force_str
@@ -15,23 +16,26 @@ def build_activation_url(user, token):
     return f'/api/activate/{uidb64}/{token}/'
 
 
-def build_frontend_activation_path(user, token):
-    """Build the frontend account activation path for a user."""
+def build_frontend_activation_url(user, token):
+    """Build the absolute frontend account activation URL for a user."""
 
     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
-    return f'/pages/auth/activate.html?uid={uidb64}&token={token}'
+    return (
+        f'{settings.FRONTEND_BASE_URL}'
+        f'/pages/auth/activate.html?uid={uidb64}&token={token}'
+    )
 
 
 def build_activation_email_message(user, token):
     """Build the plain text activation email message."""
 
-    frontend_path = build_frontend_activation_path(user, token)
+    frontend_url = build_frontend_activation_url(user, token)
     activation_url = build_activation_url(user, token)
 
     return (
         'Welcome to Videoflix.\n\n'
         'Please activate your account using this link:\n'
-        f'{frontend_path}\n\n'
+        f'{frontend_url}\n\n'
         'Backend activation endpoint:\n'
         f'{activation_url}\n\n'
         'If you did not create this account, you can ignore this email.'
@@ -58,23 +62,26 @@ def build_password_confirm_url(user, token):
     return f'/api/password_confirm/{uidb64}/{token}/'
 
 
-def build_frontend_password_confirm_path(user, token):
-    """Build the frontend password confirmation path for a user."""
+def build_frontend_password_confirm_url(user, token):
+    """Build the absolute frontend password confirmation URL for a user."""
 
     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
-    return f'/pages/auth/confirm_password.html?uid={uidb64}&token={token}'
+    return (
+        f'{settings.FRONTEND_BASE_URL}'
+        f'/pages/auth/confirm_password.html?uid={uidb64}&token={token}'
+    )
 
 
 def build_password_reset_email_message(user, token):
     """Build the plain text password reset email message."""
 
-    frontend_path = build_frontend_password_confirm_path(user, token)
+    frontend_url = build_frontend_password_confirm_url(user, token)
     confirm_url = build_password_confirm_url(user, token)
 
     return (
         'You requested a password reset for your Videoflix account.\n\n'
         'Please set a new password using this link:\n'
-        f'{frontend_path}\n\n'
+        f'{frontend_url}\n\n'
         'Backend password confirmation endpoint:\n'
         f'{confirm_url}\n\n'
         'If you did not request this password reset, you can ignore this email.'

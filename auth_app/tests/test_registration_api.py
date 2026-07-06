@@ -114,8 +114,9 @@ class TestRegistrationApi(AuthTestMixin):
         assert activation_url in email_body
 
 
-    def test_registration_activation_email_contains_frontend_activation_path(self):
-        """Test that activation email contains the frontend activation path."""
+    def test_registration_activation_email_contains_frontend_activation_url(self):
+        """Test that activation email contains the frontend activation URL."""
+
         response = self.client.post(
             self.url,
             self.valid_registration_data,
@@ -124,14 +125,85 @@ class TestRegistrationApi(AuthTestMixin):
 
         user = get_user_model().objects.get(email='user@example.com')
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
-        frontend_activation_path = (
-            f'/pages/auth/activate.html?uid={uidb64}'
+
+        frontend_activation_url = (
+            f'http://127.0.0.1:5500/pages/auth/activate.html?uid={uidb64}'
             f'&token={response.data["token"]}'
         )
+
         email_body = mail.outbox[0].body
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert frontend_activation_path in email_body
+        assert frontend_activation_url in email_body
+
+
+    def test_registration_activation_email_contains_html_alternative(self):
+        """Test that activation email contains an HTML alternative."""
+
+        response = self.client.post(
+            self.url,
+            self.valid_registration_data,
+            format='json',
+        )
+
+        email = mail.outbox[0]
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert len(email.alternatives) == 1
+        assert email.alternatives[0][1] == 'text/html'
+
+
+    def test_registration_activation_html_email_contains_button_text(self):
+        """Test that activation HTML email contains activation button text."""
+
+        response = self.client.post(
+            self.url,
+            self.valid_registration_data,
+            format='json',
+        )
+
+        html_content = mail.outbox[0].alternatives[0][0]
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert 'Activate account' in html_content
+
+
+    def test_registration_activation_html_email_contains_frontend_activation_url(self):
+        """Test that activation HTML email contains frontend activation URL."""
+
+        response = self.client.post(
+            self.url,
+            self.valid_registration_data,
+            format='json',
+        )
+
+        user = get_user_model().objects.get(email='user@example.com')
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+
+        frontend_activation_url = (
+            f'http://127.0.0.1:5500/pages/auth/activate.html?uid={uidb64}'
+            f'&token={response.data["token"]}'
+        )
+
+        html_content = mail.outbox[0].alternatives[0][0]
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert frontend_activation_url in html_content
+
+
+    def test_registration_activation_html_email_contains_videoflix_branding(self):
+        """Test that activation HTML email contains Videoflix branding."""
+
+        response = self.client.post(
+            self.url,
+            self.valid_registration_data,
+            format='json',
+        )
+
+        html_content = mail.outbox[0].alternatives[0][0]
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert 'Videoflix' in html_content
 
 
     @pytest.mark.parametrize('is_active', [True, False])
