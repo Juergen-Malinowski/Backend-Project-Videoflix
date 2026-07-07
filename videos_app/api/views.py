@@ -1,3 +1,10 @@
+"""API views for the Videoflix videos app."""
+
+from pathlib import Path
+
+from django.conf import settings
+from django.http import HttpResponse
+
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -31,7 +38,47 @@ class VideoListView(APIView):
 
 
 class VideoManifestView(APIView):
-    pass
+    """Return an HLS manifest file for a video and resolution."""
+
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, movie_id, resolution):
+        """Return the requested HLS manifest file."""
+
+        try:
+            Video.objects.get(id=movie_id)
+            manifest_path = self.get_manifest_path(movie_id, resolution)
+
+            if not manifest_path.is_file():
+                return Response(status=status.HTTP_404_NOT_FOUND)
+
+            content = manifest_path.read_text(encoding='utf-8')
+
+            return HttpResponse(
+                content,
+                content_type='application/vnd.apple.mpegurl',
+            )
+
+        except Video.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        except Exception:
+            return Response(
+                {'detail': 'Internal server error.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def get_manifest_path(self, movie_id, resolution):
+        """Return the expected HLS manifest path."""
+
+        return (
+            Path(settings.MEDIA_ROOT)
+            / 'videos'
+            / str(movie_id)
+            / resolution
+            / 'index.m3u8'
+        )
 
 
 class VideoSegmentView(APIView):
