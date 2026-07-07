@@ -42,6 +42,23 @@ DJANGO_SUPERUSER_PASSWORD
 DJANGO_SUPERUSER_EMAIL
 ```
 
+## Table of Contents
+
+* [Docker Setup Notes](#docker-setup-notes)
+* [Environment Variables](#environment-variables)
+* [Project Structure](#project-structure)
+* [Database Models](#database-models)
+  * [`videos_app.Video`](#videos_appvideo)
+* [Django Admin](#django-admin)
+* [API Endpoints](#api-endpoints)
+  * [Authentication Endpoints](#authentication-endpoints)
+  * [Video Endpoints](#video-endpoints)
+* [Authentication](#authentication)
+* [Testing](#testing)
+* [Running Tests](#running-tests)
+* [Docker Commands](#docker-commands)
+* [Current Implementation Status](#current-implementation-status)
+
 ## Docker Setup Notes
 
 This project uses the provided Videoflix Docker setup.
@@ -64,29 +81,32 @@ The `.env` file is created from `.env.template` and must not be committed.
 
 Important variables:
 
-| Name                        | Purpose                                         |
-| --------------------------- | ----------------------------------------------- |
-| `DJANGO_SUPERUSER_USERNAME` | Admin username created by the Docker entrypoint |
-| `DJANGO_SUPERUSER_PASSWORD` | Admin password created by the Docker entrypoint |
-| `DJANGO_SUPERUSER_EMAIL`    | Admin email created by the Docker entrypoint    |
-| `SECRET_KEY`                | Django secret key                               |
-| `DEBUG`                     | Django debug mode                               |
-| `ALLOWED_HOSTS`             | Allowed backend hosts                           |
-| `CSRF_TRUSTED_ORIGINS`      | Trusted frontend origins                        |
-| `DB_NAME`                   | PostgreSQL database name                        |
-| `DB_USER`                   | PostgreSQL database user                        |
-| `DB_PASSWORD`               | PostgreSQL database password                    |
-| `DB_HOST`                   | PostgreSQL database host                        |
-| `DB_PORT`                   | PostgreSQL database port                        |
-| `REDIS_LOCATION`            | Redis cache location                            |
-| `REDIS_HOST`                | Redis host                                      |
-| `REDIS_PORT`                | Redis port                                      |
-| `REDIS_DB`                  | Redis database index                            |
-| `EMAIL_HOST`                | SMTP host                                       |
-| `EMAIL_PORT`                | SMTP port                                       |
-| `EMAIL_HOST_USER`           | SMTP user                                       |
-| `EMAIL_HOST_PASSWORD`       | SMTP password                                   |
-| `DEFAULT_FROM_EMAIL`        | Default sender address                          |
+| Name                        | Purpose                                               |
+| --------------------------- | ----------------------------------------------------- |
+| `DJANGO_SUPERUSER_USERNAME` | Admin username created by the Docker entrypoint       |
+| `DJANGO_SUPERUSER_PASSWORD` | Admin password created by the Docker entrypoint       |
+| `DJANGO_SUPERUSER_EMAIL`    | Admin email created by the Docker entrypoint          |
+| `SECRET_KEY`                | Django secret key                                     |
+| `DEBUG`                     | Django debug mode                                     |
+| `ALLOWED_HOSTS`             | Allowed backend hosts                                 |
+| `CSRF_TRUSTED_ORIGINS`      | Trusted frontend origins                              |
+| `FRONTEND_BASE_URL`         | Frontend base URL used for email links                |
+| `DB_NAME`                   | PostgreSQL database name                              |
+| `DB_USER`                   | PostgreSQL database user                              |
+| `DB_PASSWORD`               | PostgreSQL database password                          |
+| `DB_HOST`                   | PostgreSQL database host                              |
+| `DB_PORT`                   | PostgreSQL database port                              |
+| `REDIS_LOCATION`            | Redis cache location                                  |
+| `REDIS_HOST`                | Redis host                                            |
+| `REDIS_PORT`                | Redis port                                            |
+| `REDIS_DB`                  | Redis database index                                  |
+| `EMAIL_HOST`                | SMTP host                                             |
+| `EMAIL_PORT`                | SMTP port                                             |
+| `EMAIL_HOST_USER`           | SMTP user                                             |
+| `EMAIL_HOST_PASSWORD`       | SMTP password                                         |
+| `EMAIL_USE_TLS`             | Enables TLS for SMTP email delivery                   |
+| `EMAIL_USE_SSL`             | Enables SSL for SMTP email delivery                   |
+| `DEFAULT_FROM_EMAIL`        | Default sender address                                |
 
 ## Project Structure
 
@@ -97,10 +117,17 @@ backend/
 ├── auth_app/
 │   ├── api/
 │   │   ├── __init__.py
+│   │   ├── authentication.py
 │   │   ├── permissions.py
 │   │   ├── serializers.py
 │   │   ├── urls.py
+│   │   ├── utils.py
 │   │   └── views.py
+│   ├── templates/
+│   │   └── auth_app/
+│   │       └── emails/
+│   │           ├── activation_email.html
+│   │           └── password_reset_email.html
 │   ├── tests/
 │   │   ├── __init__.py
 │   │   ├── mixins.py
@@ -202,9 +229,59 @@ A default superuser is created automatically through the Docker entrypoint when 
 
 ## API Endpoints
 
-No project-specific API endpoints have been implemented yet.
+The backend currently provides authentication endpoints and the first video metadata endpoint.
 
-Planned endpoint areas will be added after the Videoflix API documentation has been analyzed.
+### Authentication Endpoints
+
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| `POST` | `/api/register/` | Creates an inactive user account and sends an activation email |
+| `GET` | `/api/activate/<uidb64>/<token>/` | Activates a user account with an email activation token |
+| `POST` | `/api/login/` | Authenticates an active user and sets JWT cookies |
+| `POST` | `/api/logout/` | Blacklists the refresh token and deletes authentication cookies |
+| `POST` | `/api/token/refresh/` | Refreshes the access token from the refresh token cookie |
+| `POST` | `/api/password_reset/` | Sends a password reset email when the account exists |
+| `POST` | `/api/password_confirm/<uidb64>/<token>/` | Sets a new password after token validation |
+
+### Video Endpoints
+
+| Method | Endpoint | Description | Status |
+| ------ | -------- | ----------- | ------ |
+| `GET` | `/api/video/` | Returns authenticated video metadata ordered by creation date descending | Implemented |
+| `GET` | `/api/video/<int:movie_id>/<str:resolution>/index.m3u8` | Returns an HLS manifest file for a video and resolution | Planned |
+| `GET` | `/api/video/<int:movie_id>/<str:resolution>/<str:segment>/` | Returns an HLS video segment file for a video and resolution | Planned |
+
+## Authentication
+
+The authentication app is implemented with Django REST Framework and SimpleJWT.
+
+Authentication uses HttpOnly cookies instead of returning JWT tokens directly to the frontend after login.
+
+Cookie names:
+
+* `access_token`
+* `refresh_token`
+
+Implemented authentication behavior:
+
+* users register with email, password and password confirmation
+* registered users are inactive until account activation
+* activation emails contain frontend activation links
+* login authenticates active users and sets JWT cookies
+* logout blacklists the refresh token and deletes authentication cookies
+* token refresh reads the refresh token from the cookie and sets a new access token cookie
+* password reset responses stay neutral to avoid account enumeration
+* password reset emails contain frontend password confirmation links
+* password confirmation validates the token and stores the new password
+* HTML email templates are rendered with plain text fallbacks
+
+The HTML email templates are located under:
+
+```text
+auth_app/templates/auth_app/emails/
+├── activation_email.html
+└── password_reset_email.html
+```
 
 ## Testing
 
@@ -361,3 +438,27 @@ Implemented so far:
 * reusable video test helpers added
 * Docker-based pytest commands documented
 * current prepared test count documented
+* authentication API routes implemented
+* registration API implemented
+* account activation API implemented
+* login API implemented
+* logout API implemented
+* token refresh API implemented
+* password reset API implemented
+* password confirm API implemented
+* JWT authentication uses HttpOnly cookies
+* access tokens are stored in the `access_token` cookie
+* refresh tokens are stored in the `refresh_token` cookie
+* refresh tokens are blacklisted on logout
+* account activation emails implemented
+* password reset emails implemented
+* HTML email templates added for activation and password reset emails
+* plain text email fallbacks kept for authentication emails
+* frontend email links configured through `FRONTEND_BASE_URL`
+* generated local email preview files ignored
+* cookie-based JWT authentication class added for protected video endpoints
+* video metadata serializer added
+* authenticated `GET /api/video/` endpoint implemented
+* video list response returns documented metadata fields
+* video list response is ordered by creation date descending
+* video list endpoint verified with passing tests
