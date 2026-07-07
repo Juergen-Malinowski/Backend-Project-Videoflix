@@ -4,7 +4,8 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
@@ -42,17 +43,33 @@ def build_activation_email_message(user, token):
     )
 
 
+def build_activation_email_html(user, token):
+    """Render the HTML activation email message."""
+
+    return render_to_string(
+        'auth_app/emails/activation_email.html',
+        {
+            'user': user,
+            'activation_url': build_frontend_activation_url(user, token),
+        },
+    )
+
+
 def send_activation_email(user, token):
     """Send an account activation email to a newly registered user."""
 
     message = build_activation_email_message(user, token)
+    html_message = build_activation_email_html(user, token)
 
-    send_mail(
+    email = EmailMultiAlternatives(
         subject='Activate your Videoflix account',
-        message=message,
+        body=message,
         from_email=None,
-        recipient_list=[user.email],
+        to=[user.email],
     )
+
+    email.attach_alternative(html_message, 'text/html')
+    email.send()
 
 
 def build_password_confirm_url(user, token):
@@ -88,17 +105,36 @@ def build_password_reset_email_message(user, token):
     )
 
 
+def build_password_reset_email_html(user, token):
+    """Render the HTML password reset email message."""
+
+    return render_to_string(
+        'auth_app/emails/password_reset_email.html',
+        {
+            'user': user,
+            'password_confirm_url': build_frontend_password_confirm_url(
+                user,
+                token,
+            ),
+        },
+    )
+
+
 def send_password_reset_email(user, token):
     """Send a password reset email to a user."""
 
     message = build_password_reset_email_message(user, token)
+    html_message = build_password_reset_email_html(user, token)
 
-    send_mail(
+    email = EmailMultiAlternatives(
         subject='Reset your Videoflix password',
-        message=message,
+        body=message,
         from_email=None,
-        recipient_list=[user.email],
+        to=[user.email],
     )
+
+    email.attach_alternative(html_message, 'text/html')
+    email.send()
 
 
 def get_user_from_uidb64(uidb64):

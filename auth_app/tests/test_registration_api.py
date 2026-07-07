@@ -1,5 +1,7 @@
 """Tests for the Videoflix user registration API endpoint."""
 
+from html import escape
+
 import pytest
 
 from django.contrib.auth import get_user_model
@@ -188,7 +190,7 @@ class TestRegistrationApi(AuthTestMixin):
         html_content = mail.outbox[0].alternatives[0][0]
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert frontend_activation_url in html_content
+        assert escape(frontend_activation_url) in html_content
 
 
     def test_registration_activation_html_email_contains_videoflix_branding(self):

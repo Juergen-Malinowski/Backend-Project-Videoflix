@@ -48,6 +48,7 @@ media/
 # --- Temporary / Generated Files ---
 tmp/
 temp/
+email_previews/
 
 # --- IDE / Editor ---
 .vscode/*

@@ -1,5 +1,7 @@
 """Tests for the Videoflix password reset API endpoint."""
 
+from html import escape
+
 import pytest
 
 from django.contrib.auth.tokens import default_token_generator
@@ -117,7 +119,7 @@ class TestPasswordResetApi(AuthTestMixin):
         html_content = mail.outbox[0].alternatives[0][0]
 
         assert response.status_code == status.HTTP_200_OK
-        assert frontend_confirm_url in html_content
+        assert escape(frontend_confirm_url) in html_content
 
 
     def test_password_reset_html_email_contains_videoflix_branding(self):
