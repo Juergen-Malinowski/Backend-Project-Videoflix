@@ -82,4 +82,48 @@ class VideoManifestView(APIView):
 
 
 class VideoSegmentView(APIView):
-    pass
+    """Return an HLS video segment file for a video and resolution."""
+
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, movie_id, resolution, segment):
+        """Return the requested HLS video segment file."""
+
+        try:
+            Video.objects.get(id=movie_id)
+            segment_path = self.get_segment_path(
+                movie_id,
+                resolution,
+                segment,
+            )
+
+            if not segment_path.is_file():
+                return Response(status=status.HTTP_404_NOT_FOUND)
+
+            content = segment_path.read_bytes()
+
+            return HttpResponse(
+                content,
+                content_type='video/MP2T',
+            )
+
+        except Video.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        except Exception:
+            return Response(
+                {'detail': 'Internal server error.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def get_segment_path(self, movie_id, resolution, segment):
+        """Return the expected HLS video segment path."""
+
+        return (
+            Path(settings.MEDIA_ROOT)
+            / 'videos'
+            / str(movie_id)
+            / resolution
+            / segment
+        )
