@@ -1,15 +1,19 @@
 """Tests for the Videoflix video list API endpoint."""
 
+from datetime import timedelta
+
 from unittest.mock import patch
 
 import pytest
 
 from django.urls import reverse
+from django.utils import timezone
 
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from videos_app.tests.mixins import VideoTestMixin
+from videos_app.models import Video
 
 
 @pytest.mark.django_db
@@ -67,6 +71,29 @@ class TestVideoListApi(VideoTestMixin):
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 2
         assert response_titles == {'Movie Title', 'Another Movie'}
+
+
+    def test_video_list_orders_videos_by_created_at_desc(self):
+        """Test that newest videos are listed first."""
+
+        self.authenticate_client()
+        older_video = self.create_video(title='Older Movie')
+        newer_video = self.create_video(title='Newer Movie')
+        reference_time = timezone.now()
+
+        Video.objects.filter(id=older_video.id).update(
+            created_at=reference_time - timedelta(days=1),
+        )
+        Video.objects.filter(id=newer_video.id).update(
+            created_at=reference_time,
+        )
+
+        response = self.client.get(self.url)
+
+        response_titles = [video['title'] for video in response.data]
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response_titles == ['Newer Movie', 'Older Movie']
 
 
     def test_video_list_returns_documented_video_fields(self):
