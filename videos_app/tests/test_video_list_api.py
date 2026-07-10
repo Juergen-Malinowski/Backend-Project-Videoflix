@@ -57,8 +57,8 @@ class TestVideoListApi(VideoTestMixin):
         assert isinstance(response.data, list)
 
 
-    def test_video_list_returns_all_available_videos(self):
-        """Test that the video list contains all available videos."""
+    def test_video_list_returns_all_ready_videos(self):
+        """Test that the video list contains all ready videos."""
 
         self.authenticate_client()
         self.create_video(title='Movie Title', category='Drama')
@@ -73,17 +73,69 @@ class TestVideoListApi(VideoTestMixin):
         assert response_titles == {'Movie Title', 'Another Movie'}
 
 
+    def test_video_list_excludes_pending_videos(self):
+        """Test that pending videos are not returned in the video list."""
+
+        self.authenticate_client()
+        self.create_video(
+            title='Pending Movie',
+            processing_status=Video.STATUS_PENDING,
+        )
+
+        response = self.client.get(self.url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data == []
+
+
+    def test_video_list_excludes_processing_videos(self):
+        """Test that processing videos are not returned in the video list."""
+
+        self.authenticate_client()
+        self.create_video(
+            title='Processing Movie',
+            processing_status=Video.STATUS_PROCESSING,
+        )
+
+        response = self.client.get(self.url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data == []
+
+
+    def test_video_list_excludes_failed_videos(self):
+        """Test that failed videos are not returned in the video list."""
+
+        self.authenticate_client()
+        self.create_video(
+            title='Failed Movie',
+            processing_status=Video.STATUS_FAILED,
+        )
+
+        response = self.client.get(self.url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data == []
+
+
     def test_video_list_orders_videos_by_created_at_desc(self):
         """Test that newest videos are listed first."""
 
         self.authenticate_client()
         older_video = self.create_video(title='Older Movie')
         newer_video = self.create_video(title='Newer Movie')
+
+        self.create_video(
+            title='Pending Movie',
+            processing_status=Video.STATUS_PENDING,
+        )
+
         reference_time = timezone.now()
 
         Video.objects.filter(id=older_video.id).update(
             created_at=reference_time - timedelta(days=1),
         )
+
         Video.objects.filter(id=newer_video.id).update(
             created_at=reference_time,
         )
@@ -139,12 +191,12 @@ class TestVideoListApi(VideoTestMixin):
         assert video_data['created_at']
 
 
-    @patch('videos_app.api.views.Video.objects.all')
-    def test_video_list_returns_500_for_internal_error(self, mocked_all):
+    @patch('videos_app.api.views.Video.objects.filter')
+    def test_video_list_returns_500_for_internal_error(self, mocked_filter):
         """Test that an internal video loading error returns HTTP 500."""
 
         self.authenticate_client()
-        mocked_all.side_effect = Exception('Forced internal video list error')
+        mocked_filter.side_effect = Exception('Forced internal video list error')
 
         response = self.client.get(self.url)
 

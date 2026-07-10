@@ -25,7 +25,7 @@ class VideoListView(APIView):
         """Return all video metadata ordered by creation date descending."""
 
         try:
-            videos = Video.objects.all().order_by('-created_at')
+            videos = Video.objects.filter(processing_status=Video.STATUS_READY).order_by('-created_at')
             serializer = VideoSerializer(videos, many=True)
 
             return Response(serializer.data, status=status.HTTP_200_OK)

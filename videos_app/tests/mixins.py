@@ -18,7 +18,7 @@ class VideoTestMixin(AuthTestMixin):
         self.client.cookies['access_token'] = str(access_token)
 
 
-    def create_video(self, title='Movie Title', category='Drama'):
+    def create_video(self, title='Movie Title', category='Drama', processing_status=Video.STATUS_READY):
         """Create and return a video object for video API tests."""
 
         return Video.objects.create(
@@ -26,6 +26,7 @@ class VideoTestMixin(AuthTestMixin):
             description='Movie Description',
             thumbnail_url='http://example.com/media/thumbnail/image.jpg',
             category=category,
+            processing_status=processing_status,
         )
 
 
