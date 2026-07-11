@@ -2,6 +2,7 @@
 
 import django_rq
 
+from videos_app.cache import clear_video_list_cache
 from videos_app.models import Video
 from videos_app.services.hls import clean_hls_output, process_video_to_hls
 
@@ -38,6 +39,7 @@ def mark_video_as_processing(video):
     video.processing_status = Video.STATUS_PROCESSING
     video.processing_error = ''
     video.save(update_fields=['processing_status', 'processing_error'])
+    clear_video_list_cache()
 
 
 def mark_video_as_ready(video):
@@ -46,6 +48,7 @@ def mark_video_as_ready(video):
     video.processing_status = Video.STATUS_READY
     video.processing_error = ''
     video.save(update_fields=['processing_status', 'processing_error'])
+    clear_video_list_cache()
 
 
 def mark_video_as_failed(video, error):
@@ -54,4 +57,4 @@ def mark_video_as_failed(video, error):
     video.processing_status = Video.STATUS_FAILED
     video.processing_error = str(error)
     video.save(update_fields=['processing_status', 'processing_error'])
-    
+    clear_video_list_cache()
