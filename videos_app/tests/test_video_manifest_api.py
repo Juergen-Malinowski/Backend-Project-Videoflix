@@ -9,6 +9,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from videos_app.models import Video
 from videos_app.tests.mixins import VideoTestMixin
 
 
@@ -136,6 +137,51 @@ class TestVideoManifestApi(VideoTestMixin):
         video = self.create_video()
         self.create_manifest_file(video=video, resolution='720p')
         url = self.get_manifest_url(video.id, resolution='1080p')
+
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+    def test_video_manifest_rejects_pending_video(self, settings, tmp_path):
+        """Test that pending videos do not expose manifests."""
+
+        self.media_root = tmp_path
+        settings.MEDIA_ROOT = tmp_path
+        self.authenticate_client()
+        video = self.create_video(processing_status=Video.STATUS_PENDING)
+        self.create_manifest_file(video=video, resolution='720p')
+        url = self.get_manifest_url(video.id, resolution='720p')
+
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+    def test_video_manifest_rejects_processing_video(self, settings, tmp_path):
+        """Test that processing videos do not expose manifests."""
+
+        self.media_root = tmp_path
+        settings.MEDIA_ROOT = tmp_path
+        self.authenticate_client()
+        video = self.create_video(processing_status=Video.STATUS_PROCESSING)
+        self.create_manifest_file(video=video, resolution='720p')
+        url = self.get_manifest_url(video.id, resolution='720p')
+
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+    def test_video_manifest_rejects_failed_video(self, settings, tmp_path):
+        """Test that failed videos do not expose manifests."""
+
+        self.media_root = tmp_path
+        settings.MEDIA_ROOT = tmp_path
+        self.authenticate_client()
+        video = self.create_video(processing_status=Video.STATUS_FAILED)
+        self.create_manifest_file(video=video, resolution='720p')
+        url = self.get_manifest_url(video.id, resolution='720p')
 
         response = self.client.get(url)
 

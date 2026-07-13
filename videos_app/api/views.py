@@ -47,7 +47,11 @@ class VideoManifestView(APIView):
         """Return the requested HLS manifest file."""
 
         try:
-            Video.objects.get(id=movie_id)
+            Video.objects.get(
+                id=movie_id,
+                processing_status=Video.STATUS_READY,
+            )
+
             manifest_path = self.get_manifest_path(movie_id, resolution)
 
             if not manifest_path.is_file():
@@ -91,7 +95,11 @@ class VideoSegmentView(APIView):
         """Return the requested HLS video segment file."""
 
         try:
-            Video.objects.get(id=movie_id)
+            Video.objects.get(
+                id=movie_id,
+                processing_status=Video.STATUS_READY,
+            )
+
             segment_path = self.get_segment_path(
                 movie_id,
                 resolution,
