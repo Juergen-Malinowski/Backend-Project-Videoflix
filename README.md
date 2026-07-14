@@ -10,34 +10,126 @@ The project uses a Docker-based setup with PostgreSQL, Redis, Django RQ, Gunicor
 
 ## Setup
 
-Run the following commands to set up the project locally.
+### Prerequisites
+
+Before setting up the backend, ensure that the following software is installed:
+
+* Git
+* Docker Desktop on Windows or macOS, or Docker Engine on Linux
+* Docker Compose
+
+Docker Desktop or the Docker service must be running before the containers are built and started.
+
+Python, PostgreSQL, Redis and FFmpeg do not need to be installed separately on the host system because they are provided through Docker.
+
+### Clone the Backend Repository
+
+Clone the backend repository:
 
 ```bash
-# Clone repository
 git clone https://github.com/Juergen-Malinowski/Backend-Project-Videoflix.git
+```
 
-# Open project folder
+Open the project directory:
+
+```bash
 cd Backend-Project-Videoflix
+```
 
-# Create local environment file
+### Create the Environment File
+
+On Linux, macOS, Git Bash or WSL, create the local `.env` file with:
+
+```bash
 cp .env.template .env
 ```
 
-Open the newly created `.env` file and replace the template values with your local configuration.
+On Windows PowerShell, use:
+
+```powershell
+Copy-Item .env.template .env
+```
+
+On Windows Command Prompt, use:
+
+```cmd
+copy .env.template .env
+```
+
+Open the newly created `.env` file and replace the template values with your own local configuration.
 
 At minimum, configure:
 
-* Django secret key and debug settings
-* allowed hosts and trusted frontend origins
-* PostgreSQL credentials
+* a unique Django `SECRET_KEY`
+* the desired `DEBUG` value
+* allowed backend hosts
+* trusted frontend origins
+* PostgreSQL database credentials
 * Redis connections
 * Django admin credentials
 * SMTP credentials
-* frontend base URL
+* the frontend base URL
+
+The following values must not remain unchanged in a real environment:
+
+```env
+DJANGO_SUPERUSER_USERNAME=your_admin_username
+DJANGO_SUPERUSER_PASSWORD=your_secure_admin_password
+DJANGO_SUPERUSER_EMAIL=your_admin_email@example.com
+
+SECRET_KEY=your_unique_django_secret_key
+
+DB_NAME=your_database_name
+DB_USER=your_database_user
+DB_PASSWORD=your_secure_database_password
+DB_HOST=db
+DB_PORT=5432
+```
+
+Redis is configured through Docker and normally uses:
+
+```env
+REDIS_HOST=redis
+REDIS_LOCATION=redis://redis:6379/1
+REDIS_PORT=6379
+REDIS_DB=0
+```
+
+To use account activation and password reset email delivery, configure valid SMTP credentials.
+
+Example for SMTP over SSL/TLS:
+
+```env
+EMAIL_HOST=your_smtp_server
+EMAIL_PORT=465
+EMAIL_HOST_USER=your_email_address
+EMAIL_HOST_PASSWORD=your_email_password
+EMAIL_USE_TLS=False
+EMAIL_USE_SSL=True
+DEFAULT_FROM_EMAIL=your_email_address
+```
+
+Example for SMTP with STARTTLS:
+
+```env
+EMAIL_HOST=your_smtp_server
+EMAIL_PORT=587
+EMAIL_HOST_USER=your_email_address
+EMAIL_HOST_PASSWORD=your_email_password
+EMAIL_USE_TLS=True
+EMAIL_USE_SSL=False
+DEFAULT_FROM_EMAIL=your_email_address
+```
+
+Only one SMTP encryption mode may be enabled at the same time.
 
 Never commit the local `.env` file or real credentials.
 
-Build and start the Docker containers:
+### Build and Start the Backend
+
+Ensure that Docker Desktop or the Docker service is running.
+
+Build the Docker images and start all containers:
 
 ```bash
 docker-compose up --build
@@ -49,48 +141,146 @@ If `docker-compose` is not available, use the newer Docker Compose syntax:
 docker compose up --build
 ```
 
+The command runs in the foreground and displays the container logs.
+
+Stop the running containers with:
+
+```text
+Ctrl+C
+```
+
 The Docker entrypoint automatically:
 
 * waits until PostgreSQL is available
 * collects static files
-* applies database migrations
+* creates and applies database migrations
 * creates the Django superuser from environment variables
 * starts the Django RQ worker
 * starts Gunicorn on port `8000`
 
-The backend is then available at:
+During the first build, Docker installs all Python dependencies and the required system packages, including FFmpeg.
+
+### Open the Backend
+
+The backend is available at:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-Open the Django admin at:
+The Django admin is available at:
 
 ```text
 http://127.0.0.1:8000/admin/
 ```
 
-The Django superuser is created automatically from the following variables defined in the local `.env` file:
+Log in with the credentials configured in:
 
 ```env
 DJANGO_SUPERUSER_USERNAME=your_admin_username
-DJANGO_SUPERUSER_PASSWORD=your_admin_password
-DJANGO_SUPERUSER_EMAIL=your_admin_email@example.com
+DJANGO_SUPERUSER_PASSWORD=your_secure_admin_password
 ```
 
-These values are read by `backend.entrypoint.sh` when the Docker container starts.
+### Start the Backend Later
 
-For local frontend integration, start the compatible Developer Akademie frontend separately:
+After the initial build, start the existing containers without rebuilding the images:
 
-[Developer Akademie Videoflix Frontend](https://github.com/Developer-Akademie-Backendkurs/project.Videoflix)
+```bash
+docker-compose up
+```
 
-The recommended local frontend address is:
+Start them in detached mode:
+
+```bash
+docker-compose up -d
+```
+
+With the newer Docker Compose syntax, use:
+
+```bash
+docker compose up
+```
+
+or:
+
+```bash
+docker compose up -d
+```
+
+## Frontend Setup
+
+The frontend is maintained in a separate repository and must be started independently from the backend.
+
+The frontend version used and tested with this backend is available here:
+
+[Juergen Malinowski Videoflix Frontend](https://github.com/Juergen-Malinowski/Frontend-Project-Videoflix)
+
+The frontend project is based on the original Videoflix frontend provided by the Developer Akademie:
+
+[Original Developer Akademie Videoflix Frontend](https://github.com/Developer-Akademie-Backendkurs/project.Videoflix)
+
+### Frontend Prerequisites
+
+Before setting up the frontend, ensure that the following software is installed:
+
+* Git
+* Visual Studio Code
+* the VS Code Live Server extension
+
+The Videoflix frontend is a static frontend project and does not require a separate package installation.
+
+### Clone the Frontend Repository
+
+Open a second terminal outside the backend project directory and clone the frontend repository:
+
+```bash
+git clone https://github.com/Juergen-Malinowski/Frontend-Project-Videoflix.git
+```
+
+Open the frontend project directory:
+
+```bash
+cd Frontend-Project-Videoflix
+```
+
+Open the project in Visual Studio Code:
+
+```bash
+code .
+```
+
+If the `code` command is unavailable, open Visual Studio Code manually and select the cloned `Frontend-Project-Videoflix` folder through `File` → `Open Folder`.
+
+### Start the Frontend
+
+Ensure that the Videoflix backend is already running at:
+
+```text
+http://127.0.0.1:8000
+```
+
+In Visual Studio Code:
+
+1. Open `index.html`.
+2. Right-click inside the file.
+3. Select `Open with Live Server`.
+
+The frontend should be available at:
 
 ```text
 http://127.0.0.1:5500
 ```
 
-Ensure that `FRONTEND_BASE_URL` and `CSRF_TRUSTED_ORIGINS` use the same frontend origin.
+The exact Live Server port must match the frontend origin configured in the backend `.env` file:
+
+```env
+FRONTEND_BASE_URL=http://127.0.0.1:5500
+CSRF_TRUSTED_ORIGINS=http://127.0.0.1:5500
+```
+
+Backend and frontend must run at the same time for registration, authentication, email links, video list loading and HLS playback to work.
+
+Use the same host format consistently. Do not mix `localhost` and `127.0.0.1` unless both origins are included in `CSRF_TRUSTED_ORIGINS`.
 
 ## Table of Contents
 
@@ -607,7 +797,11 @@ The frontend is maintained as a separate project and communicates with the backe
 
 Compatible frontend repository:
 
-[Developer Akademie Videoflix Frontend](https://github.com/Developer-Akademie-Backendkurs/project.Videoflix)
+[Juergen Malinowski Videoflix Frontend](https://github.com/Juergen-Malinowski/Frontend-Project-Videoflix)
+
+This frontend is based on the original project provided by the Developer Akademie:
+
+[Original Developer Akademie Videoflix Frontend](https://github.com/Developer-Akademie-Backendkurs/project.Videoflix)
 
 For local development, the frontend is typically served with a local development server at:
 
