@@ -8,6 +8,8 @@ Videos can be uploaded through the Django admin and converted asynchronously int
 
 The project uses a Docker-based setup with PostgreSQL, Redis, Django RQ, Gunicorn and WhiteNoise. The frontend and backend are maintained as separate projects and communicate through a REST API.
 
+The entire backend was developed using a Test-Driven Development workflow, with tests written before each functional implementation and used for immediate verification throughout development.
+
 ## Setup
 
 ### Prerequisites
@@ -885,6 +887,21 @@ The frontend has been tested successfully with:
 * HLS video playback in multiple resolutions
 
 ## Testing
+
+The entire backend was developed according to the Test-Driven Development approach.
+
+For each functional area, the required tests were written first. The implementation was then developed incrementally until the corresponding tests passed. This provided immediate verification of every implemented behavior and helped ensure that the API documentation, backend logic and frontend requirements remained consistent throughout development.
+
+The development cycle followed this pattern:
+
+```text
+Define the required behavior
+→ write the corresponding tests
+→ run the tests and verify that they fail
+→ implement the functionality
+→ run the tests again
+→ refactor while keeping all tests passing
+```
 
 The project uses `pytest` and `pytest-django` for automated testing.
 
