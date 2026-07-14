@@ -58,6 +58,38 @@ copy .env.template .env
 
 Open the newly created `.env` file and replace the template values with your own local configuration.
 
+Generate a unique Django `SECRET_KEY`.
+
+If Python is installed locally, use:
+
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+If Python is not installed locally, generate the key through Docker Compose:
+
+```bash
+docker compose run --rm web python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+With the older Docker Compose syntax, use:
+
+```bash
+docker-compose run --rm web python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+Insert the generated value into the `.env` file:
+
+```env
+SECRET_KEY="your_generated_secret_key"
+```
+
+Every developer must generate an individual `SECRET_KEY`.
+
+The `.env` file must never be committed.
+
+If a `SECRET_KEY` has been exposed publicly, replace it immediately.
+
 At minimum, configure:
 
 * a unique Django `SECRET_KEY`
@@ -77,7 +109,7 @@ DJANGO_SUPERUSER_USERNAME=your_admin_username
 DJANGO_SUPERUSER_PASSWORD=your_secure_admin_password
 DJANGO_SUPERUSER_EMAIL=your_admin_email@example.com
 
-SECRET_KEY=your_unique_django_secret_key
+SECRET_KEY="your_generated_secret_key"
 
 DB_NAME=your_database_name
 DB_USER=your_database_user
@@ -122,8 +154,6 @@ DEFAULT_FROM_EMAIL=your_email_address
 ```
 
 Only one SMTP encryption mode may be enabled at the same time.
-
-Never commit the local `.env` file or real credentials.
 
 ### Build and Start the Backend
 
