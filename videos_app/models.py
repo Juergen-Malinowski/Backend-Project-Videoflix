@@ -4,7 +4,7 @@ from pathlib import Path
 from shutil import move, rmtree
 
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 
 
 def video_source_upload_path(instance, filename):
@@ -118,10 +118,31 @@ class Video(models.Model):
     def save(self, *args, **kwargs):
         """Save the video and move source files into the final media path."""
 
+        should_start_processing = self.should_start_automatic_processing()
+
         super().save(*args, **kwargs)
 
         if self.source_file and self.is_source_file_temporary():
             self.move_source_file_to_final_path()
+
+        if should_start_processing:
+            self.start_processing_after_commit()
+
+
+    def should_start_automatic_processing(self):
+        """Return whether this save should start automatic video processing."""
+
+        return self._state.adding and bool(self.source_file)
+
+
+    def start_processing_after_commit(self):
+        """Start automatic video processing after database commit."""
+
+        from videos_app.tasks import convert_video_to_hls
+
+        transaction.on_commit(
+            lambda: convert_video_to_hls.delay(self.id),
+        )
 
 
     def is_source_file_temporary(self):
