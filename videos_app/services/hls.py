@@ -24,13 +24,13 @@ def get_hls_output_dir(video, resolution):
 def get_thumbnail_output_path(video):
     """Return the generated thumbnail output path for a video."""
 
-    return (
-        Path(settings.MEDIA_ROOT)
-        / 'videos'
-        / str(video.id)
-        / 'thumbnail'
-        / 'thumbnail.jpg'
-    )
+    return Path(settings.MEDIA_ROOT) / get_thumbnail_file_name(video)
+
+
+def get_thumbnail_file_name(video):
+    """Return the generated thumbnail file name for the video model."""
+
+    return f'videos/{video.id}/thumbnail/thumbnail.jpg'
 
 
 def build_ffmpeg_hls_command(source_path, output_dir, resolution):
@@ -89,9 +89,7 @@ def generate_video_thumbnail(video):
     )
     run_ffmpeg_command(command)
 
-    video.thumbnail.name = (
-        f'videos/{video.id}/thumbnail/thumbnail.jpg'
-    )
+    video.thumbnail.name = get_thumbnail_file_name(video)
     video.save(update_fields=['thumbnail'])
 
 
@@ -123,3 +121,17 @@ def clean_hls_output(video):
 
         if output_dir.exists():
             shutil.rmtree(output_dir)
+
+
+def clean_video_processing_files(video):
+    """Remove all files created or used during failed video processing."""
+
+    clean_hls_output(video)
+
+    if video.source_file:
+        video.source_file.delete(save=False)
+
+    if video.thumbnail:
+        video.thumbnail.delete(save=False)
+
+    video.save(update_fields=['source_file', 'thumbnail'])

@@ -4,12 +4,12 @@ import django_rq
 
 from videos_app.cache import clear_video_list_cache
 from videos_app.models import Video
-from videos_app.services.hls import clean_hls_output, process_video_to_hls
+from videos_app.services.hls import clean_video_processing_files, process_video_to_hls
 
 
 @django_rq.job
 def convert_video_to_hls(video_id):
-    """Convert a video source file to HLS output files."""
+    """Convert a video source file to HLS output files and thumbnail."""
 
     try:
         video = Video.objects.get(id=video_id)
@@ -24,7 +24,7 @@ def convert_video_to_hls(video_id):
 
     except Exception as error:
         mark_video_as_failed(video, error)
-        clean_hls_output(video)
+        clean_video_processing_files(video)
 
         return None
 
