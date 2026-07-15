@@ -1,9 +1,9 @@
 """Admin configuration for the Videoflix videos app."""
 
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.utils.html import format_html
 
 from videos_app.models import Video
-from videos_app.tasks import convert_video_to_hls
 
 
 @admin.register(Video)
@@ -31,9 +31,16 @@ class VideoAdmin(admin.ModelAdmin):
     ordering = (
         '-created_at',
     )
-    actions = (
-        'convert_selected_videos_to_hls',
-        'retry_failed_hls_conversions',
+    actions = ()
+    exclude = (
+        'thumbnail',
+    )
+    readonly_fields = (
+        'thumbnail_preview',
+        'processing_status_help',
+        'processing_status',
+        'processing_error_help',
+        'processing_error',
     )
 
 
@@ -49,19 +56,67 @@ class VideoAdmin(admin.ModelAdmin):
         return f'{video.processing_error[:77]}...'
 
 
-    def convert_selected_videos_to_hls(self, request, queryset):
-        """Start HLS conversion tasks for selected videos."""
+    @admin.display(description='Thumbnail preview')
+    def thumbnail_preview(self, video):
+        """Return an HTML image preview for the generated thumbnail."""
 
-        for video in queryset:
-            convert_video_to_hls.delay(video.id)
+        if not video.thumbnail:
+            return '-'
 
-
-    def retry_failed_hls_conversions(self, request, queryset):
-        """Restart HLS conversion tasks for selected failed videos."""
-
-        failed_videos = queryset.filter(
-            processing_status=Video.STATUS_FAILED,
+        return format_html(
+            '<img src="{}" style="max-width: 240px; height: auto;" />',
+            video.thumbnail.url,
         )
 
-        for video in failed_videos:
-            convert_video_to_hls.delay(video.id)
+
+    @admin.display(description='Processing status help')
+    def processing_status_help(self, _video):
+        """Return admin help text for automatic processing status."""
+
+        return (
+            'Zeigt den aktuellen Stand der automatischen Videoverarbeitung. '
+            'Dieses Feld wird vom Backend gesetzt und kann nicht manuell '
+            'geändert werden. Status: pending = wartet auf Verarbeitung, '
+            'processing = Verarbeitung läuft, ready = erfolgreich verarbeitet '
+            'und im Frontend sichtbar, failed = fehlgeschlagen. Bei failed '
+            'steht die Ursache im Feld „processing error“.'
+        )
+
+
+    @admin.display(description='Processing error help')
+    def processing_error_help(self, _video):
+        """Return admin help text for automatic processing errors."""
+
+        return (
+            'Enthält die technische Fehlermeldung, falls die automatische '
+            'Videoverarbeitung fehlgeschlagen ist. Dieses Feld wird vom '
+            'Backend gesetzt und kann nicht manuell geändert werden.'
+        )
+
+
+    def save_model(self, request, obj, form, change):
+        """Save the video and show automatic processing information."""
+
+        super().save_model(request, obj, form, change)
+
+        if not change and obj.source_file:
+            self.message_user(
+                request,
+                self.get_automatic_processing_message(),
+                level=messages.WARNING,
+            )
+
+
+    def get_automatic_processing_message(self):
+        """Return the admin message for automatic video processing."""
+
+        return (
+            'Die automatische Videoverarbeitung wurde gestartet. '
+            'Aktualisieren Sie später die Seite und prüfen Sie den Status. '
+            'Wenn das Video als „failed“ erscheint, ist die Verarbeitung '
+            'fehlgeschlagen. Die hochgeladene Videodatei und alle dabei '
+            'erzeugten Dateien wurden automatisch bereinigt. Laden Sie das '
+            'Video in diesem Fall erneut hoch. Der Videodatensatz aus der '
+            'fehlgeschlagenen Verarbeitung kann bei Bedarf über den '
+            'Statusfilter gesucht und manuell gelöscht werden.'
+        )
