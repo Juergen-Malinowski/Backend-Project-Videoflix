@@ -1,7 +1,7 @@
 """Database models for the Videoflix videos app."""
 
 from pathlib import Path
-from shutil import move
+from shutil import move, rmtree
 
 from django.conf import settings
 from django.db import models
@@ -11,6 +11,12 @@ def video_source_upload_path(instance, filename):
     """Return the temporary upload path for original video files."""
 
     return f'videos/temp/{filename}'
+
+
+def video_thumbnail_upload_path(instance, filename):
+    """Return the upload path for generated video thumbnails."""
+
+    return f'videos/{instance.id}/thumbnail/{filename}'
 
 
 class Video(models.Model):
@@ -28,10 +34,58 @@ class Video(models.Model):
         (STATUS_FAILED, 'Failed'),
     ]
 
+    CATEGORY_ACTION = 'Action'
+    CATEGORY_ADVENTURE = 'Adventure'
+    CATEGORY_ANIMATION = 'Animation'
+    CATEGORY_COMEDY = 'Comedy'
+    CATEGORY_CRIME = 'Crime'
+    CATEGORY_DOCUMENTARY = 'Documentary'
+    CATEGORY_DRAMA = 'Drama'
+    CATEGORY_FAMILY = 'Family'
+    CATEGORY_FANTASY = 'Fantasy'
+    CATEGORY_HISTORY = 'History'
+    CATEGORY_HORROR = 'Horror'
+    CATEGORY_MYSTERY = 'Mystery'
+    CATEGORY_NATURE = 'Nature'
+    CATEGORY_ROMANCE = 'Romance'
+    CATEGORY_SCIENCE_FICTION = 'Science Fiction'
+    CATEGORY_SPORTS = 'Sports'
+    CATEGORY_THRILLER = 'Thriller'
+    CATEGORY_TRAVEL = 'Travel'
+
+    CATEGORY_CHOICES = [
+        (CATEGORY_ACTION, 'Action'),
+        (CATEGORY_ADVENTURE, 'Adventure'),
+        (CATEGORY_ANIMATION, 'Animation'),
+        (CATEGORY_COMEDY, 'Comedy'),
+        (CATEGORY_CRIME, 'Crime'),
+        (CATEGORY_DOCUMENTARY, 'Documentary'),
+        (CATEGORY_DRAMA, 'Drama'),
+        (CATEGORY_FAMILY, 'Family'),
+        (CATEGORY_FANTASY, 'Fantasy'),
+        (CATEGORY_HISTORY, 'History'),
+        (CATEGORY_HORROR, 'Horror'),
+        (CATEGORY_MYSTERY, 'Mystery'),
+        (CATEGORY_NATURE, 'Nature'),
+        (CATEGORY_ROMANCE, 'Romance'),
+        (CATEGORY_SCIENCE_FICTION, 'Science Fiction'),
+        (CATEGORY_SPORTS, 'Sports'),
+        (CATEGORY_THRILLER, 'Thriller'),
+        (CATEGORY_TRAVEL, 'Travel'),
+    ]
+
     title = models.CharField(max_length=255)
     description = models.TextField()
-    thumbnail_url = models.URLField(max_length=500)
-    category = models.CharField(max_length=100)
+
+    thumbnail = models.ImageField(
+        upload_to=video_thumbnail_upload_path,
+        blank=True,
+    )
+
+    category = models.CharField(
+        max_length=100,
+        choices=CATEGORY_CHOICES,
+    )
 
     source_file = models.FileField(
         upload_to=video_source_upload_path,
@@ -60,7 +114,7 @@ class Video(models.Model):
 
         return self.title
 
-    
+
     def save(self, *args, **kwargs):
         """Save the video and move source files into the final media path."""
 
@@ -96,3 +150,20 @@ class Video(models.Model):
         filename = Path(self.source_file.name).name
 
         return f'videos/{self.id}/source/{filename}'
+
+
+    def delete(self, *args, **kwargs):
+        """Delete the video and remove its media directory."""
+
+        video_media_dir = self.get_video_media_dir()
+
+        super().delete(*args, **kwargs)
+
+        if video_media_dir.exists():
+            rmtree(video_media_dir)
+
+
+    def get_video_media_dir(self):
+        """Return the media directory for this video."""
+
+        return Path(settings.MEDIA_ROOT) / 'videos' / str(self.id)
