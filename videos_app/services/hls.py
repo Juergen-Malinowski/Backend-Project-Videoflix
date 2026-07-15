@@ -21,6 +21,18 @@ def get_hls_output_dir(video, resolution):
     return Path(settings.MEDIA_ROOT) / 'videos' / str(video.id) / resolution
 
 
+def get_thumbnail_output_path(video):
+    """Return the generated thumbnail output path for a video."""
+
+    return (
+        Path(settings.MEDIA_ROOT)
+        / 'videos'
+        / str(video.id)
+        / 'thumbnail'
+        / 'thumbnail.jpg'
+    )
+
+
 def build_ffmpeg_hls_command(source_path, output_dir, resolution):
     """Build the FFmpeg command for HLS conversion."""
 
@@ -44,17 +56,52 @@ def build_ffmpeg_hls_command(source_path, output_dir, resolution):
     ]
 
 
+def build_ffmpeg_thumbnail_command(source_path, thumbnail_path):
+    """Build the FFmpeg command for thumbnail generation."""
+
+    return [
+        'ffmpeg',
+        '-ss',
+        '00:00:01',
+        '-i',
+        str(source_path),
+        '-frames:v',
+        '1',
+        str(thumbnail_path),
+    ]
+
+
 def run_ffmpeg_command(command):
     """Run an FFmpeg command."""
 
     subprocess.run(command, check=True)
 
 
+def generate_video_thumbnail(video):
+    """Generate and assign a thumbnail for a video."""
+
+    thumbnail_path = get_thumbnail_output_path(video)
+    thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
+
+    command = build_ffmpeg_thumbnail_command(
+        video.source_file.path,
+        thumbnail_path,
+    )
+    run_ffmpeg_command(command)
+
+    video.thumbnail.name = (
+        f'videos/{video.id}/thumbnail/thumbnail.jpg'
+    )
+    video.save(update_fields=['thumbnail'])
+
+
 def process_video_to_hls(video):
-    """Convert a video source file to HLS output files."""
+    """Convert a video source file to HLS output files and thumbnail."""
 
     if not video.source_file:
         raise ValueError('Video source file is required.')
+
+    generate_video_thumbnail(video)
 
     for resolution, scale in HLS_RESOLUTIONS.items():
         output_dir = get_hls_output_dir(video, resolution)

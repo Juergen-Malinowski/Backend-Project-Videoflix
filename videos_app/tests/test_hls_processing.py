@@ -12,8 +12,10 @@ from videos_app.models import Video
 from videos_app.services.hls import (
     HLS_RESOLUTIONS,
     build_ffmpeg_hls_command,
+    build_ffmpeg_thumbnail_command,
     clean_hls_output,
     get_hls_output_dir,
+    get_thumbnail_output_path,
     process_video_to_hls,
 )
 
@@ -38,6 +40,22 @@ class TestHlsProcessing:
         output_dir = get_hls_output_dir(video, '720p')
 
         assert output_dir == Path(settings.MEDIA_ROOT) / 'videos' / str(video.id) / '720p'
+
+
+    def test_get_thumbnail_output_path_returns_thumbnail_file_path(self):
+        """Test that thumbnail output path points to the thumbnail directory."""
+
+        video = self.create_video()
+
+        thumbnail_path = get_thumbnail_output_path(video)
+
+        assert thumbnail_path == (
+            Path(settings.MEDIA_ROOT)
+            / 'videos'
+            / str(video.id)
+            / 'thumbnail'
+            / 'thumbnail.jpg'
+        )
 
 
     def test_build_ffmpeg_hls_command_contains_source_file(self):
@@ -98,6 +116,61 @@ class TestHlsProcessing:
         assert '10' in command
 
 
+    def test_build_ffmpeg_thumbnail_command_contains_source_file(self):
+        """Test that the thumbnail FFmpeg command contains the source file."""
+
+        video = self.create_video_with_source_file()
+        thumbnail_path = get_thumbnail_output_path(video)
+
+        command = build_ffmpeg_thumbnail_command(
+            video.source_file.path,
+            thumbnail_path,
+        )
+
+        assert video.source_file.path in command
+
+
+    def test_build_ffmpeg_thumbnail_command_uses_second_one(self):
+        """Test that the thumbnail FFmpeg command extracts from second one."""
+
+        thumbnail_path = Path(settings.MEDIA_ROOT) / 'videos' / '1' / 'thumbnail.jpg'
+
+        command = build_ffmpeg_thumbnail_command(
+            '/tmp/source.mp4',
+            thumbnail_path,
+        )
+
+        assert '-ss' in command
+        assert '00:00:01' in command
+
+
+    def test_build_ffmpeg_thumbnail_command_writes_single_frame(self):
+        """Test that the thumbnail FFmpeg command writes one frame."""
+
+        thumbnail_path = Path(settings.MEDIA_ROOT) / 'videos' / '1' / 'thumbnail.jpg'
+
+        command = build_ffmpeg_thumbnail_command(
+            '/tmp/source.mp4',
+            thumbnail_path,
+        )
+
+        assert '-frames:v' in command
+        assert '1' in command
+
+
+    def test_build_ffmpeg_thumbnail_command_contains_thumbnail_path(self):
+        """Test that the thumbnail FFmpeg command writes the thumbnail file."""
+
+        thumbnail_path = Path(settings.MEDIA_ROOT) / 'videos' / '1' / 'thumbnail.jpg'
+
+        command = build_ffmpeg_thumbnail_command(
+            '/tmp/source.mp4',
+            thumbnail_path,
+        )
+
+        assert str(thumbnail_path) in command
+
+
     @patch('videos_app.services.hls.run_ffmpeg_command')
     def test_process_video_to_hls_creates_output_directories(
         self,
@@ -116,6 +189,52 @@ class TestHlsProcessing:
 
 
     @patch('videos_app.services.hls.run_ffmpeg_command')
+    def test_process_video_to_hls_creates_thumbnail_directory(
+        self,
+        mocked_run_ffmpeg_command,
+    ):
+        """Test that HLS processing creates the thumbnail directory."""
+
+        video = self.create_video_with_source_file()
+
+        process_video_to_hls(video)
+
+        thumbnail_path = get_thumbnail_output_path(video)
+
+        assert thumbnail_path.parent.exists()
+
+
+    @patch('videos_app.services.hls.run_ffmpeg_command')
+    def test_process_video_to_hls_calls_ffmpeg_for_thumbnail(
+        self,
+        mocked_run_ffmpeg_command,
+    ):
+        """Test that HLS processing calls FFmpeg for thumbnail generation."""
+
+        video = self.create_video_with_source_file()
+
+        process_video_to_hls(video)
+
+        assert mocked_run_ffmpeg_command.call_count == len(HLS_RESOLUTIONS) + 1
+
+
+    @patch('videos_app.services.hls.run_ffmpeg_command')
+    def test_process_video_to_hls_assigns_thumbnail_to_video(
+        self,
+        mocked_run_ffmpeg_command,
+    ):
+        """Test that HLS processing assigns the generated thumbnail to the video."""
+
+        video = self.create_video_with_source_file()
+
+        process_video_to_hls(video)
+
+        video.refresh_from_db()
+
+        assert video.thumbnail.name == f'videos/{video.id}/thumbnail/thumbnail.jpg'
+
+
+    @patch('videos_app.services.hls.run_ffmpeg_command')
     def test_process_video_to_hls_calls_ffmpeg_for_each_resolution(
         self,
         mocked_run_ffmpeg_command,
@@ -126,7 +245,7 @@ class TestHlsProcessing:
 
         process_video_to_hls(video)
 
-        assert mocked_run_ffmpeg_command.call_count == len(HLS_RESOLUTIONS)
+        assert mocked_run_ffmpeg_command.call_count >= len(HLS_RESOLUTIONS)
 
 
     def test_process_video_to_hls_rejects_missing_source_file(self):
@@ -172,8 +291,7 @@ class TestHlsProcessing:
         return Video.objects.create(
             title='Movie Title',
             description='Movie Description',
-            thumbnail_url='http://example.com/media/thumbnail/image.jpg',
-            category='Drama',
+            category=Video.CATEGORY_DRAMA,
         )
 
 
