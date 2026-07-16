@@ -907,18 +907,18 @@ The project uses `pytest` and `pytest-django` for automated testing.
 
 The complete test suite contains:
 
-* 148 collected tests
-* 148 passed tests
-* 15 test files
-* total execution time: 40.60 seconds
+179 collected tests
+179 passed tests
+16 test files
+total execution time: 42.83 seconds
 
 Test distribution:
 
 | Application | Test files | Tests |
-| --- | ---: | ---: |
-| `auth_app` | 7 | 73 |
-| `videos_app` | 8 | 75 |
-| **Total** | **15** | **148** |
+| ----------- | ---------: | ----: |
+| auth_app | 7 | 73 |
+| videos_app | 9 | 106 |
+| Total | 16 | 179 |
 
 The authentication tests cover:
 
@@ -991,6 +991,7 @@ videos_app/
 └── tests/
     ├── test_hls_processing.py
     ├── test_video_admin.py
+    ├── test_video_auto_processing.py
     ├── test_video_cache.py
     ├── test_video_list_api.py
     ├── test_video_manifest_api.py

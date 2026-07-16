@@ -33,6 +33,39 @@ def get_thumbnail_file_name(video):
     return f'videos/{video.id}/thumbnail/thumbnail.jpg'
 
 
+def get_video_duration(source_path):
+    """Return the video duration in seconds."""
+
+    command = [
+        'ffprobe',
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        str(source_path),
+    ]
+
+    result = subprocess.run(
+        command,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    return float(result.stdout.strip())
+
+
+def get_thumbnail_timestamp(duration):
+    """Return the thumbnail timestamp based on video duration."""
+
+    if duration >= 5:
+        return '00:00:03'
+
+    return '00:00:01'
+
+
 def build_ffmpeg_hls_command(source_path, output_dir, resolution):
     """Build the FFmpeg command for HLS conversion."""
 
@@ -56,13 +89,13 @@ def build_ffmpeg_hls_command(source_path, output_dir, resolution):
     ]
 
 
-def build_ffmpeg_thumbnail_command(source_path, thumbnail_path):
+def build_ffmpeg_thumbnail_command(source_path, thumbnail_path, timestamp):
     """Build the FFmpeg command for thumbnail generation."""
 
     return [
         'ffmpeg',
         '-ss',
-        '00:00:01',
+        timestamp,
         '-i',
         str(source_path),
         '-frames:v',
@@ -83,9 +116,13 @@ def generate_video_thumbnail(video):
     thumbnail_path = get_thumbnail_output_path(video)
     thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
 
+    duration = get_video_duration(video.source_file.path)
+    timestamp = get_thumbnail_timestamp(duration)
+
     command = build_ffmpeg_thumbnail_command(
         video.source_file.path,
         thumbnail_path,
+        timestamp,
     )
     run_ffmpeg_command(command)
 

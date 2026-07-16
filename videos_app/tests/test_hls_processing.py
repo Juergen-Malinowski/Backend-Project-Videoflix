@@ -16,6 +16,8 @@ from videos_app.services.hls import (
     clean_hls_output,
     get_hls_output_dir,
     get_thumbnail_output_path,
+    get_thumbnail_timestamp,
+    get_video_duration,
     process_video_to_hls,
 )
 
@@ -125,23 +127,52 @@ class TestHlsProcessing:
         command = build_ffmpeg_thumbnail_command(
             video.source_file.path,
             thumbnail_path,
+            '00:00:03',
         )
 
         assert video.source_file.path in command
 
 
-    def test_build_ffmpeg_thumbnail_command_uses_second_one(self):
-        """Test that the thumbnail FFmpeg command extracts from second one."""
+    def test_build_ffmpeg_thumbnail_command_uses_given_timestamp(self):
+        """Test that the thumbnail FFmpeg command uses the given timestamp."""
 
         thumbnail_path = Path(settings.MEDIA_ROOT) / 'videos' / '1' / 'thumbnail.jpg'
 
         command = build_ffmpeg_thumbnail_command(
             '/tmp/source.mp4',
             thumbnail_path,
+            '00:00:03',
         )
 
         assert '-ss' in command
-        assert '00:00:01' in command
+        assert '00:00:03' in command
+
+
+    @patch('videos_app.services.hls.subprocess.run')
+    def test_get_video_duration_returns_duration_as_float(self, mocked_run):
+        """Test that video duration is read from ffprobe output."""
+
+        mocked_run.return_value.stdout = '5.125\n'
+
+        duration = get_video_duration('/tmp/source.mp4')
+
+        assert duration == 5.125
+
+
+    def test_get_thumbnail_timestamp_uses_second_three_for_long_enough_video(self):
+        """Test that videos of at least five seconds use second three."""
+
+        timestamp = get_thumbnail_timestamp(5.0)
+
+        assert timestamp == '00:00:03'
+
+
+    def test_get_thumbnail_timestamp_uses_second_one_for_short_video(self):
+        """Test that videos shorter than five seconds use second one."""
+
+        timestamp = get_thumbnail_timestamp(4.99)
+
+        assert timestamp == '00:00:01'
 
 
     def test_build_ffmpeg_thumbnail_command_writes_single_frame(self):
@@ -152,6 +183,7 @@ class TestHlsProcessing:
         command = build_ffmpeg_thumbnail_command(
             '/tmp/source.mp4',
             thumbnail_path,
+            '00:00:03',
         )
 
         assert '-frames:v' in command
@@ -166,19 +198,23 @@ class TestHlsProcessing:
         command = build_ffmpeg_thumbnail_command(
             '/tmp/source.mp4',
             thumbnail_path,
+            '00:00:03',
         )
 
         assert str(thumbnail_path) in command
 
 
+    @patch('videos_app.services.hls.get_video_duration')
     @patch('videos_app.services.hls.run_ffmpeg_command')
     def test_process_video_to_hls_creates_output_directories(
         self,
-        mocked_run_ffmpeg_command,
+        _mocked_run_ffmpeg_command,
+        mocked_get_video_duration,
     ):
         """Test that HLS processing creates all output directories."""
 
         video = self.create_video_with_source_file()
+        mocked_get_video_duration.return_value = 5.0
 
         process_video_to_hls(video)
 
@@ -188,14 +224,17 @@ class TestHlsProcessing:
             assert output_dir.exists()
 
 
+    @patch('videos_app.services.hls.get_video_duration')
     @patch('videos_app.services.hls.run_ffmpeg_command')
     def test_process_video_to_hls_creates_thumbnail_directory(
         self,
-        mocked_run_ffmpeg_command,
+        _mocked_run_ffmpeg_command,
+        mocked_get_video_duration,
     ):
         """Test that HLS processing creates the thumbnail directory."""
 
         video = self.create_video_with_source_file()
+        mocked_get_video_duration.return_value = 5.0
 
         process_video_to_hls(video)
 
@@ -204,28 +243,54 @@ class TestHlsProcessing:
         assert thumbnail_path.parent.exists()
 
 
+    @patch('videos_app.services.hls.get_video_duration')
     @patch('videos_app.services.hls.run_ffmpeg_command')
     def test_process_video_to_hls_calls_ffmpeg_for_thumbnail(
         self,
         mocked_run_ffmpeg_command,
+        mocked_get_video_duration,
     ):
         """Test that HLS processing calls FFmpeg for thumbnail generation."""
 
         video = self.create_video_with_source_file()
+        mocked_get_video_duration.return_value = 5.0
 
         process_video_to_hls(video)
 
         assert mocked_run_ffmpeg_command.call_count == len(HLS_RESOLUTIONS) + 1
 
 
+    @patch('videos_app.services.hls.get_video_duration')
+    @patch('videos_app.services.hls.run_ffmpeg_command')
+    def test_process_video_to_hls_uses_dynamic_thumbnail_timestamp(
+        self,
+        mocked_run_ffmpeg_command,
+        mocked_get_video_duration,
+    ):
+        """Test that HLS processing uses the duration-based thumbnail timestamp."""
+
+        mocked_get_video_duration.return_value = 5.0
+        video = self.create_video_with_source_file()
+
+        process_video_to_hls(video)
+
+        thumbnail_command = mocked_run_ffmpeg_command.call_args_list[0].args[0]
+
+        assert '-ss' in thumbnail_command
+        assert '00:00:03' in thumbnail_command
+
+
+    @patch('videos_app.services.hls.get_video_duration')
     @patch('videos_app.services.hls.run_ffmpeg_command')
     def test_process_video_to_hls_assigns_thumbnail_to_video(
         self,
-        mocked_run_ffmpeg_command,
+        _mocked_run_ffmpeg_command,
+        mocked_get_video_duration,
     ):
         """Test that HLS processing assigns the generated thumbnail to the video."""
 
         video = self.create_video_with_source_file()
+        mocked_get_video_duration.return_value = 5.0
 
         process_video_to_hls(video)
 
@@ -234,14 +299,17 @@ class TestHlsProcessing:
         assert video.thumbnail.name == f'videos/{video.id}/thumbnail/thumbnail.jpg'
 
 
+    @patch('videos_app.services.hls.get_video_duration')
     @patch('videos_app.services.hls.run_ffmpeg_command')
     def test_process_video_to_hls_calls_ffmpeg_for_each_resolution(
         self,
         mocked_run_ffmpeg_command,
+        mocked_get_video_duration,
     ):
         """Test that FFmpeg is called once per configured HLS resolution."""
 
         video = self.create_video_with_source_file()
+        mocked_get_video_duration.return_value = 5.0
 
         process_video_to_hls(video)
 
