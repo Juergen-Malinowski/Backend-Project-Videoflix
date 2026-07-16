@@ -12,8 +12,8 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from videos_app.tests.mixins import VideoTestMixin
 from videos_app.models import Video
+from videos_app.tests.mixins import VideoTestMixin
 
 
 @pytest.mark.django_db
@@ -61,8 +61,8 @@ class TestVideoListApi(VideoTestMixin):
         """Test that the video list contains all ready videos."""
 
         self.authenticate_client()
-        self.create_video(title='Movie Title', category='Drama')
-        self.create_video(title='Another Movie', category='Romance')
+        self.create_video(title='Movie Title', category=Video.CATEGORY_DRAMA)
+        self.create_video(title='Another Movie', category=Video.CATEGORY_ROMANCE)
 
         response = self.client.get(self.url)
 
@@ -173,7 +173,10 @@ class TestVideoListApi(VideoTestMixin):
         """Test that video metadata matches the stored video data."""
 
         self.authenticate_client()
-        video = self.create_video(title='Movie Title', category='Drama')
+
+        video = self.create_video(title='Movie Title', category=Video.CATEGORY_DRAMA)
+        video.thumbnail.name = f'videos/{video.id}/thumbnail/thumbnail.jpg'
+        video.save(update_fields=['thumbnail'])
 
         response = self.client.get(self.url)
 
@@ -183,10 +186,10 @@ class TestVideoListApi(VideoTestMixin):
         assert video_data['id'] == video.id
         assert video_data['title'] == 'Movie Title'
         assert video_data['description'] == 'Movie Description'
-        assert video_data['thumbnail_url'] == (
-            'http://example.com/media/thumbnail/image.jpg'
+        assert video_data['thumbnail_url'].endswith(
+            f'/media/videos/{video.id}/thumbnail/thumbnail.jpg'
         )
-        assert video_data['category'] == 'Drama'
+        assert video_data['category'] == Video.CATEGORY_DRAMA
         assert 'created_at' in video_data
         assert video_data['created_at']
 

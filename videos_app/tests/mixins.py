@@ -24,16 +24,27 @@ class VideoTestMixin(AuthTestMixin):
         category=Video.CATEGORY_DRAMA,
         processing_status=Video.STATUS_READY,
         processing_error='',
+        thumbnail=None,
     ):
         """Create and return a video object for video API tests."""
 
-        return Video.objects.create(
+        video = Video.objects.create(
             title=title,
             description='Movie Description',
             category=category,
             processing_status=processing_status,
             processing_error=processing_error,
         )
+
+        if thumbnail is None:
+            video.thumbnail.name = f'videos/{video.id}/thumbnail/thumbnail.jpg'
+            video.save(update_fields=['thumbnail'])
+
+        elif thumbnail:
+            video.thumbnail.name = thumbnail
+            video.save(update_fields=['thumbnail'])
+
+        return video
 
 
     def create_video_for_tasks(
