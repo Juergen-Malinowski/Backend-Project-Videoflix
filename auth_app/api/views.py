@@ -1,5 +1,6 @@
-from datetime import timedelta
+"""API views for the Videoflix authentication app."""
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 
@@ -176,7 +177,9 @@ class TokenRefreshView(APIView):
             value=str(access_token),
             httponly=True,
             samesite='Lax',
-            max_age=int(timedelta(minutes=5).total_seconds()),
+            max_age=int(
+                settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()
+            ),
         )
         return response
 

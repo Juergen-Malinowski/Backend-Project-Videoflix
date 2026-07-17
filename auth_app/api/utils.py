@@ -1,7 +1,5 @@
 """Utility functions for the Videoflix authentication API."""
 
-from datetime import timedelta
-
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
@@ -157,14 +155,18 @@ def set_auth_cookies(response, access_token, refresh_token):
         value=str(access_token),
         httponly=True,
         samesite='Lax',
-        max_age=int(timedelta(minutes=5).total_seconds()),
+        max_age=int(
+            settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()
+        ),
     )
     response.set_cookie(
         key='refresh_token',
         value=str(refresh_token),
         httponly=True,
         samesite='Lax',
-        max_age=int(timedelta(days=1).total_seconds()),
+        max_age=int(
+            settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()
+        ),
     )
 
 

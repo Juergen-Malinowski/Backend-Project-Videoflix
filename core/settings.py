@@ -1,4 +1,6 @@
 import os
+
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -133,6 +135,12 @@ RQ_QUEUES = {
         'DEFAULT_TIMEOUT': 3600,
         'REDIS_CLIENT_KWARGS': {},
     },
+}
+
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=25),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
 
 

@@ -2,6 +2,7 @@
 
 import pytest
 
+from django.conf import settings
 from django.urls import reverse
 
 from rest_framework import status
@@ -100,6 +101,30 @@ class TestLoginApi(AuthTestMixin):
         assert response.status_code == status.HTTP_200_OK
         assert access_token['httponly'] is True
         assert refresh_token['httponly'] is True
+
+
+    def test_login_sets_token_cookie_max_age_from_settings(self):
+        """Test that login token cookies use the configured JWT lifetimes."""
+
+        response = self.client.post(
+            self.url,
+            self.login_data,
+            format='json',
+        )
+
+        access_token = response.cookies['access_token']
+        refresh_token = response.cookies['refresh_token']
+
+        expected_access_max_age = int(
+            settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()
+        )
+        expected_refresh_max_age = int(
+            settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert int(access_token['max-age']) == expected_access_max_age
+        assert int(refresh_token['max-age']) == expected_refresh_max_age
 
 
     def test_login_requires_no_authentication(self):

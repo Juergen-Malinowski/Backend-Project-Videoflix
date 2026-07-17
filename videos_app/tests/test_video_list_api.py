@@ -186,7 +186,8 @@ class TestVideoListApi(VideoTestMixin):
         assert video_data['id'] == video.id
         assert video_data['title'] == 'Movie Title'
         assert video_data['description'] == 'Movie Description'
-        assert video_data['thumbnail_url'].endswith(
+        assert video_data['thumbnail_url'] == (
+            f'http://testserver'
             f'/media/videos/{video.id}/thumbnail/thumbnail.jpg'
         )
         assert video_data['category'] == Video.CATEGORY_DRAMA

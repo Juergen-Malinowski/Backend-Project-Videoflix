@@ -30,4 +30,9 @@ class VideoSerializer(serializers.ModelSerializer):
         if not video.thumbnail:
             return ''
 
+        request = self.context.get('request')
+
+        if request:
+            return request.build_absolute_uri(video.thumbnail.url)
+
         return video.thumbnail.url

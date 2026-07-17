@@ -26,7 +26,8 @@ class VideoListView(APIView):
 
         try:
             videos = Video.objects.filter(processing_status=Video.STATUS_READY).order_by('-created_at')
-            serializer = VideoSerializer(videos, many=True)
+
+            serializer = VideoSerializer(videos, many=True, context={'request': request})
 
             return Response(serializer.data, status=status.HTTP_200_OK)
 
