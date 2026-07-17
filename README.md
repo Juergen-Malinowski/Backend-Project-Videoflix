@@ -2,11 +2,13 @@
 
 Videoflix Backend is a Django REST Framework backend for a Netflix-inspired video platform.
 
-The backend provides user registration, email-based account activation, cookie-based JWT authentication, password reset functionality, authenticated video metadata endpoints and HLS video streaming in multiple resolutions.
+The backend provides user registration, email-based account activation, cookie-based JWT authentication, token refresh, secure logout, password reset functionality, authenticated video metadata endpoints and protected HLS video streaming in multiple resolutions.
 
-Videos can be uploaded through the Django admin and converted asynchronously into HLS output files by Django RQ and FFmpeg.
+Videos can be uploaded through the Django admin. After a new video with a source file is saved, the backend automatically starts asynchronous HLS processing through Django RQ and FFmpeg after the database transaction has been committed.
 
-The project uses a Docker-based setup with PostgreSQL, Redis, Django RQ, Gunicorn and WhiteNoise. The frontend and backend are maintained as separate projects and communicate through a REST API.
+The video processing workflow generates HLS output files in multiple resolutions and creates a local thumbnail image for each successfully processed video. Only videos with the processing status `ready` are exposed through the video list API and allowed to serve HLS manifests and segments.
+
+The project uses a Docker-based setup with PostgreSQL, Redis, a dedicated Django RQ worker service, Gunicorn, WhiteNoise and FFmpeg. The frontend and backend are maintained as separate projects and communicate through a REST API.
 
 The entire backend was developed using a Test-Driven Development workflow, with tests written before each functional implementation and used for immediate verification throughout development.
 
@@ -181,14 +183,15 @@ Stop the running containers with:
 Ctrl+C
 ```
 
-The Docker entrypoint automatically:
+The Docker entrypoint of the `web` service automatically:
 
 * waits until PostgreSQL is available
 * collects static files
 * creates and applies database migrations
 * creates the Django superuser from environment variables
-* starts the Django RQ worker
 * starts Gunicorn on port `8000`
+
+The Django RQ worker runs in a dedicated `worker` service and listens to the `default` queue.
 
 During the first build, Docker installs all Python dependencies and the required system packages, including FFmpeg.
 
@@ -333,7 +336,6 @@ Use the same host format consistently. Do not mix `localhost` and `127.0.0.1` un
 * [Testing](#testing)
 * [Running Tests](#running-tests)
 * [Docker Commands](#docker-commands)
-* [Current Implementation Status](#current-implementation-status)
 
 ## Features
 
@@ -341,16 +343,22 @@ Use the same host format consistently. Do not mix `localhost` and `127.0.0.1` un
 * Email-based account activation before the first login
 * Secure login with JWT access and refresh tokens stored in HttpOnly cookies
 * Token refresh and secure logout with refresh-token blacklisting
+* Authentication cookie lifetimes derived from `SIMPLE_JWT` settings
 * Password reset through responsive HTML emails with plain text fallbacks
 * Neutral authentication responses to reduce account enumeration risks
 * Authenticated video metadata API
 * Video ordering by creation date in descending order
 * Video upload through the Django admin
-* Asynchronous HLS conversion with Django RQ and FFmpeg
+* Automatic asynchronous HLS conversion with Django RQ and FFmpeg after video creation
+* Dedicated Docker worker service for background video processing
+* Local thumbnail generation during video processing
+* Absolute `thumbnail_url` values for frontend media access
 * HLS output in `480p`, `720p` and `1080p`
 * HLS manifest and segment delivery through protected API endpoints
 * Processing states for pending, processing, ready and failed conversions
-* Stored processing errors and retry support for failed conversions
+* Stored processing errors for failed conversions
+* Cleanup of uploaded source files, generated HLS folders and generated thumbnails after failed processing
+* Automatic removal of a video's complete media directory when the video record is deleted
 * PostgreSQL database integration
 * Redis-backed Django cache configuration
 * Redis-based RQ job queue
@@ -367,6 +375,7 @@ Use the same host format consistently. Do not mix `localhost` and `127.0.0.1` un
 * Redis
 * Django RQ
 * FFmpeg
+* Pillow
 * SimpleJWT
 * django-cors-headers
 * django-redis
@@ -450,26 +459,30 @@ EMAIL_USE_SSL=False
 
 ## Docker Architecture
 
-The project runs with Docker Compose and uses three services:
+The project runs with Docker Compose and uses four services:
 
-* `web` for Django, Gunicorn, the Django RQ worker and FFmpeg
+* `web` for Django, Gunicorn, API requests, admin access and static-file delivery
+* `worker` for Django RQ background jobs and FFmpeg-based video processing
 * `db` for PostgreSQL
 * `redis` for Django RQ and the Django caching layer
 
 The `web` service depends on PostgreSQL and Redis.
 
-The Docker entrypoint starts the required backend processes in this order:
+The `worker` service also depends on PostgreSQL and Redis and listens to the Django RQ `default` queue.
+
+The Docker entrypoint of the `web` service starts the required backend processes in this order:
 
 ```text
 Wait for PostgreSQL
 → collect static files
 → create and apply migrations
 → create the Django superuser
-→ start the Django RQ worker
 → start Gunicorn
 ```
 
-The Django RQ worker runs as a background process inside the `web` container and listens to the `default` queue.
+The `worker` service starts the Django RQ worker directly and bypasses the backend entrypoint.
+
+This prevents the worker container from running web-specific startup tasks such as static-file collection and migration handling.
 
 Redis is shared by two application areas:
 
@@ -483,7 +496,7 @@ Redis database 1
 
 PostgreSQL stores all persistent application data, including users, videos, processing states and token blacklist records.
 
-Uploaded source videos and generated HLS files are stored in the named Docker volume `videoflix_media`.
+Uploaded source videos, generated thumbnails and generated HLS files are stored in the named Docker volume `videoflix_media`.
 
 Static files are stored in the named Docker volume `videoflix_static`.
 
@@ -547,6 +560,7 @@ Backend-Project-Videoflix/
 │   │   ├── mixins.py
 │   │   ├── test_hls_processing.py
 │   │   ├── test_video_admin.py
+│   │   ├── test_video_auto_processing.py
 │   │   ├── test_video_cache.py
 │   │   ├── test_video_list_api.py
 │   │   ├── test_video_manifest_api.py
@@ -584,13 +598,13 @@ The project contains one project-specific database model.
 
 ### `videos_app.Video`
 
-The `Video` model stores video metadata, the original source file and the current HLS processing state.
+The `Video` model stores video metadata, the uploaded source file, the generated thumbnail file and the current HLS processing state.
 
 | Field | Description |
 | --- | --- |
 | `title` | Video title |
 | `description` | Video description |
-| `thumbnail_url` | URL of the video thumbnail |
+| `thumbnail` | Generated local thumbnail image |
 | `category` | Video category or genre |
 | `source_file` | Uploaded original video file |
 | `processing_status` | Current HLS conversion state |
@@ -601,7 +615,7 @@ Available processing states:
 
 * `pending` – the video is waiting for conversion
 * `processing` – the HLS conversion is currently running
-* `ready` – the HLS output was created successfully
+* `ready` – the HLS output and thumbnail were created successfully
 * `failed` – the HLS conversion failed
 
 Uploaded source files are first stored temporarily and moved after the initial database save to:
@@ -610,9 +624,19 @@ Uploaded source files are first stored temporarily and moved after the initial d
 MEDIA_ROOT/videos/<video_id>/source/<original_filename>
 ```
 
-The original source file remains available after successful or failed HLS processing.
+Generated thumbnails are stored as media files at:
+
+```text
+MEDIA_ROOT/videos/<video_id>/thumbnail/thumbnail.jpg
+```
 
 Generated HLS manifests and segments are stored as media files and are not stored directly in the database.
+
+If processing succeeds, the source file, generated thumbnail and generated HLS output remain available.
+
+If processing fails, the video record remains in the database with the processing status `failed`, the technical error is stored in `processing_error`, and uploaded or generated processing files are cleaned up.
+
+When a video record is deleted, the complete media directory for that video is removed.
 
 Additional database structures are provided by:
 
@@ -634,55 +658,61 @@ The admin interface provides:
 * search by title, description and category
 * processing status display
 * shortened processing error previews
-* HLS conversion actions
-* retry support for failed conversions
+* generated thumbnail preview
+* readonly processing status information
+* readonly processing error information
 
-Available admin actions:
+The processing status and processing error fields are managed by the backend and are readonly in the Django admin.
 
-* `Convert selected videos to HLS`
-* `Retry failed HLS conversions`
+Manual HLS conversion and retry actions are not exposed in the admin interface.
 
 The HLS processing workflow is:
 
 ```text
-Upload original video
-→ save video record
+Upload original video through the Django admin
+→ save new video record
 → move source file to the final source directory
-→ processing status: pending
-→ select video in the Django admin
-→ start HLS conversion action
-→ enqueue Django RQ background job
+→ enqueue conversion job after the database transaction has been committed
 → processing status: processing
-→ run FFmpeg conversion
+→ generate thumbnail with FFmpeg
+→ generate HLS output with FFmpeg
 → processing status: ready or failed
 ```
 
-A successful conversion creates HLS output for:
+A successful conversion creates:
 
-* `480p`
-* `720p`
-* `1080p`
+* a generated thumbnail image
+* HLS output for `480p`
+* HLS output for `720p`
+* HLS output for `1080p`
 
 If the conversion succeeds:
 
 * the processing status changes to `ready`
 * the processing error is cleared
 * the original source file remains available
+* the generated thumbnail remains available
 * generated manifests and segments are preserved
+* the video becomes visible through the video list API
+* protected HLS manifests and segments can be served
 
 If the conversion fails:
 
 * the processing status changes to `failed`
 * the exception message is stored in `processing_error`
+* uploaded source files are removed
+* generated thumbnail files are removed
 * partially generated HLS resolution folders are removed
-* the original source file remains available
-* the conversion can be started again through the retry action
+* the failed video record remains available in the admin for inspection
+* the video is not exposed through the video list API
 
 Only videos with the processing status `ready` are returned by the video list API and allowed to serve HLS manifests and segments.
 
+When a video record is deleted, the complete media directory for that video is removed.
+
 ## Media Structure
 
-Uploaded source files and generated HLS files are stored under `MEDIA_ROOT`.
+Uploaded source files, generated thumbnails and generated HLS files are stored under `MEDIA_ROOT`.
 
 ```text
 MEDIA_ROOT/
@@ -690,6 +720,8 @@ MEDIA_ROOT/
     └── <video_id>/
         ├── source/
         │   └── <original_filename>
+        ├── thumbnail/
+        │   └── thumbnail.jpg
         ├── 480p/
         │   ├── index.m3u8
         │   ├── 000.ts
@@ -704,7 +736,9 @@ MEDIA_ROOT/
             └── ...
 ```
 
-The `source` directory stores the original uploaded video file.
+The `source` directory stores the original uploaded video file after the initial database save.
+
+The `thumbnail` directory stores the generated thumbnail image created by FFmpeg during video processing.
 
 Each resolution directory contains:
 
@@ -713,7 +747,9 @@ Each resolution directory contains:
 
 FFmpeg creates HLS segments with a target duration of 10 seconds.
 
-Generated HLS folders can be removed after a failed conversion without deleting the original source file.
+If video processing fails, uploaded source files, generated thumbnails and partially generated HLS folders are removed.
+
+If a video record is deleted, the complete media directory for that video is removed.
 
 ## API Endpoints
 
@@ -754,6 +790,21 @@ The video list response contains:
 * `thumbnail_url`
 * `category`
 
+The `thumbnail_url` field contains an absolute URL to the generated local thumbnail image.
+
+Example:
+
+```json
+{
+  "id": 1,
+  "created_at": "2026-07-17T10:30:00Z",
+  "title": "Example Video",
+  "description": "Example description",
+  "thumbnail_url": "http://127.0.0.1:8000/media/videos/1/thumbnail/thumbnail.jpg",
+  "category": "Drama"
+}
+```
+
 The manifest endpoint returns:
 
 ```text
@@ -784,8 +835,14 @@ The refresh token is used by `/api/token/refresh/` to create a new access token 
 Authentication cookies are:
 
 * inaccessible to JavaScript through `HttpOnly`
+* configured with `SameSite=Lax`
+* configured with lifetimes derived from the `SIMPLE_JWT` settings
 * deleted during logout
 * validated by the custom cookie-based JWT authentication class
+
+The `access_token` cookie lifetime is derived from `SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]`.
+
+The `refresh_token` cookie lifetime is derived from `SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]`.
 
 During logout, the refresh token is added to the SimpleJWT blacklist before both authentication cookies are removed.
 
@@ -861,7 +918,7 @@ CSRF_TRUSTED_ORIGINS=http://127.0.0.1:5500
 
 Authentication tokens are stored in HttpOnly cookies.
 
-Frontend requests that require authentication must therefore include credentials.
+Authenticated frontend requests use HttpOnly cookies and must include `credentials: "include"`. The tested frontend refreshes the access token periodically through the backend refresh endpoint.
 
 Example with `fetch`:
 
@@ -871,6 +928,8 @@ fetch("http://127.0.0.1:8000/api/video/", {
     credentials: "include",
 });
 ```
+
+The video list API returns absolute `thumbnail_url` values so that the separately served frontend can load generated thumbnail images directly from the backend media URL.
 
 Activation and password reset links point to frontend pages.
 
@@ -884,7 +943,9 @@ The frontend has been tested successfully with:
 * token-based authentication
 * password reset
 * authenticated video list loading
+* generated thumbnail loading
 * HLS video playback in multiple resolutions
+* authenticated frontend usage after access-cookie lifetime correction
 
 ## Testing
 
@@ -907,18 +968,20 @@ The project uses `pytest` and `pytest-django` for automated testing.
 
 The complete test suite contains:
 
-179 collected tests
-179 passed tests
+```text
+185 collected tests
+185 passed tests
 16 test files
-total execution time: 42.83 seconds
+total execution time: 43.08 seconds
+```
 
 Test distribution:
 
 | Application | Test files | Tests |
 | ----------- | ---------: | ----: |
-| auth_app | 7 | 73 |
-| videos_app | 9 | 106 |
-| Total | 16 | 179 |
+| auth_app | 7 | 75 |
+| videos_app | 9 | 110 |
+| Total | 16 | 185 |
 
 The authentication tests cover:
 
@@ -929,7 +992,9 @@ The authentication tests cover:
 * account activation
 * login
 * cookie-based JWT authentication
+* authentication cookie lifetime configuration
 * token refresh
+* refreshed access-token cookie lifetime configuration
 * logout
 * refresh-token blacklisting
 * password reset email delivery
@@ -943,20 +1008,35 @@ The authentication tests cover:
 The video tests cover:
 
 * video model behavior
+* category choices
 * source file handling
+* source file movement after initial save
+* source temp file cleanup
+* local thumbnail field behavior
+* generated thumbnail path handling
 * HLS processing
 * FFmpeg command generation
+* video duration detection with ffprobe
+* dynamic thumbnail timestamp selection
+* thumbnail generation with FFmpeg
 * processing status changes
 * processing error handling
 * cleanup after failed conversions
+* source file cleanup after failed processing
+* thumbnail cleanup after failed processing
+* complete media directory cleanup after video deletion
+* automatic conversion job scheduling after database commit
+* prevention of duplicate conversion jobs on metadata updates
 * Django admin configuration
-* admin conversion actions
-* retry actions
+* readonly processing status and error fields
+* generated thumbnail preview in the admin
+* removal of manual HLS conversion and retry actions
 * Django RQ task behavior
 * Redis-backed video list caching
 * cache invalidation
 * authenticated video list access
 * video list serialization
+* absolute thumbnail URL serialization
 * ready-video filtering
 * creation-date ordering
 * HLS manifest delivery
@@ -968,9 +1048,11 @@ The video tests cover:
 
 Tests use isolated temporary media directories where file-system operations are required.
 
-External processes and integrations such as FFmpeg, Django RQ, Redis and email delivery are mocked where appropriate.
+External processes and integrations such as FFmpeg, ffprobe, Django RQ, Redis and email delivery are mocked where appropriate.
 
-The complete workflow was additionally verified manually through the Django admin and the compatible frontend, including real HLS conversion, account activation, login, password reset and video playback.
+The complete workflow was additionally verified manually through the Django admin and the compatible frontend, including real HLS conversion, generated thumbnail delivery, account activation, login, password reset, video list loading and HLS video playback.
+
+A long-video conversion was verified with `Big_Buck_Bunny_medium.ogv`, including asynchronous worker processing and successful frontend playback after conversion.
 
 ## Running Tests
 
@@ -1003,31 +1085,43 @@ videos_app/
 Run all tests:
 
 ```bash
-docker-compose exec web pytest
+docker-compose exec web python -m pytest
+```
+
+Run all tests with verbose output:
+
+```bash
+docker-compose exec web python -m pytest -v
 ```
 
 Run all authentication tests:
 
 ```bash
-docker-compose exec web pytest auth_app/tests/
+docker-compose exec web python -m pytest auth_app/tests/
 ```
 
 Run all video tests:
 
 ```bash
-docker-compose exec web pytest videos_app/tests/
+docker-compose exec web python -m pytest videos_app/tests/
 ```
 
-Run a single test file:
+Run a single authentication test file:
 
 ```bash
-docker-compose exec web pytest auth_app/tests/test_registration_api.py
+docker-compose exec web python -m pytest auth_app/tests/test_registration_api.py
 ```
 
-Example for a video test file:
+Run a single video test file:
 
 ```bash
-docker-compose exec web pytest videos_app/tests/test_video_list_api.py
+docker-compose exec web python -m pytest videos_app/tests/test_video_list_api.py
+```
+
+Run the automatic video processing tests:
+
+```bash
+docker-compose exec web python -m pytest videos_app/tests/test_video_auto_processing.py
 ```
 
 If `docker-compose` is not available, replace it with `docker compose` in the commands above.
@@ -1064,6 +1158,18 @@ Restart the Django backend container:
 docker-compose restart web
 ```
 
+Restart the Django RQ worker container:
+
+```bash
+docker-compose restart worker
+```
+
+Restart both backend and worker containers:
+
+```bash
+docker-compose restart web worker
+```
+
 Open a shell inside the Django backend container:
 
 ```bash
@@ -1094,6 +1200,12 @@ Follow the Django backend logs:
 docker-compose logs -f web
 ```
 
+Follow the Django RQ worker logs:
+
+```bash
+docker-compose logs -f worker
+```
+
 View the running containers:
 
 ```bash
@@ -1109,76 +1221,3 @@ docker-compose down -v
 This command deletes persistent PostgreSQL, Redis, media and static volume data and should therefore be used with caution.
 
 If `docker-compose` is not available, replace it with `docker compose` in the commands above.
-
-## Current Implementation Status
-
-The Videoflix backend is fully implemented and operational.
-
-Completed authentication functionality:
-
-* user registration
-* duplicate email and username validation
-* password confirmation validation
-* inactive account creation
-* account activation through email
-* cookie-based JWT login
-* access-token refresh
-* secure logout
-* refresh-token blacklisting
-* password reset email delivery
-* password reset confirmation
-* responsive HTML emails
-* plain text email fallbacks
-* configurable frontend activation and reset links
-* neutral responses for security-sensitive authentication requests
-
-Completed video functionality:
-
-* video metadata model
-* source video upload through the Django admin
-* final source-file storage based on the video ID
-* processing states for pending, processing, ready and failed videos
-* asynchronous processing through Django RQ
-* FFmpeg-based HLS conversion
-* HLS output in `480p`, `720p` and `1080p`
-* processing error storage
-* cleanup after failed conversions
-* retry support for failed conversions
-* authenticated video list endpoint
-* ready-video filtering
-* video ordering by creation date
-* protected HLS manifest endpoint
-* protected HLS segment endpoint
-* supported-resolution validation
-* Redis-backed video list caching
-* cache invalidation after relevant video changes
-
-Completed infrastructure:
-
-* PostgreSQL database integration
-* Redis integration for Django RQ
-* separate Redis database for the Django caching layer
-* Docker Compose configuration
-* automatic PostgreSQL availability check
-* automatic static-file collection
-* automatic migration creation and execution
-* automatic Django superuser creation
-* automatic Django RQ worker startup
-* Gunicorn application server
-* WhiteNoise static-file delivery
-* configurable SMTP delivery
-* persistent Docker volumes for database, Redis, media and static files
-
-Verification status:
-
-* 148 automated tests collected
-* 148 automated tests passed
-* complete authentication workflow verified with the frontend
-* real SMTP delivery verified
-* account activation verified through email
-* password reset verified through email
-* real HLS conversion verified with FFmpeg
-* generated HLS manifests and segments verified
-* authenticated video playback verified with the compatible frontend
-
-The backend is ready for final documentation review, repository cleanup and deployment preparation.
