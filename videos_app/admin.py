@@ -44,6 +44,17 @@ class VideoAdmin(admin.ModelAdmin):
     )
 
 
+    def get_readonly_fields(self, request, obj=None):
+        """Return readonly fields for the video admin form."""
+
+        readonly_fields = list(super().get_readonly_fields(request, obj))
+
+        if obj:
+            readonly_fields.append('source_file')
+
+        return readonly_fields
+
+
     def processing_error_preview(self, video):
         """Return a shortened processing error for the admin list."""
 
